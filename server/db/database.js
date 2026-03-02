@@ -2,7 +2,11 @@ const Database = require('better-sqlite3');
 const path = require('path');
 const fs = require('fs');
 
-const dbPath = process.env.DATABASE_PATH || path.join(__dirname, '../../rooftrack.db');
+// Resolve DATABASE_PATH relative to project root (app/), not CWD,
+// so the path is stable regardless of how the server is started.
+const projectRoot = path.join(__dirname, '../..');
+const rawDbPath = process.env.DATABASE_PATH || './rooftrack.db';
+const dbPath = path.isAbsolute(rawDbPath) ? rawDbPath : path.resolve(projectRoot, rawDbPath);
 const schemaPath = path.join(__dirname, 'schema.sql');
 const seedPath = path.join(__dirname, 'seed.sql');
 

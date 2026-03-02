@@ -1,9 +1,8 @@
+import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
-// ScrollArea import removed as it was unused
 import { useUpdateLeadStatus } from "@/hooks/useLeads";
 import { useNavigate } from "react-router-dom";
-// import { formatDistanceToNow } from "date-fns"; // Moved to utils
 import { formatDate } from "@/lib/utils";
 
 const STAGES = [
@@ -20,21 +19,37 @@ const STAGES = [
 export default function PipelineFunnel({ leads, limit = 9999 }) {
     const { mutate: updateStatus } = useUpdateLeadStatus();
     const navigate = useNavigate();
+    const [draggingId, setDraggingId] = useState(null);
 
-    // Simple drag and drop implementation
     const handleDragStart = (e, leadId) => {
-        e.dataTransfer.setData('leadId', leadId);
+        e.dataTransfer.setData('text/plain', String(leadId));
+        e.dataTransfer.effectAllowed = 'move';
+        setDraggingId(leadId);
+    };
+
+    const handleDragEnd = () => {
+        setDraggingId(null);
     };
 
     const handleDrop = (e, status) => {
-        const leadId = e.dataTransfer.getData('leadId');
-        if (leadId) {
-            updateStatus({ id: leadId, status });
+        e.preventDefault();
+        // Try dataTransfer first, fall back to draggingId state
+        let leadId = e.dataTransfer.getData('text/plain');
+        if (!leadId && draggingId) {
+            leadId = String(draggingId);
         }
+        if (leadId) {
+            const lead = leads.find(l => String(l.id) === String(leadId));
+            if (lead && lead.status !== status) {
+                updateStatus({ id: lead.id, status });
+            }
+        }
+        setDraggingId(null);
     };
 
     const handleDragOver = (e) => {
         e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
     };
 
     return (
@@ -61,8 +76,9 @@ export default function PipelineFunnel({ leads, limit = 9999 }) {
                                     key={lead.id}
                                     draggable
                                     onDragStart={(e) => handleDragStart(e, lead.id)}
+                                    onDragEnd={handleDragEnd}
                                     onClick={() => navigate(`/leads/${lead.id}`)}
-                                    className="cursor-pointer hover:shadow-md transition-shadow relative group"
+                                    className="cursor-grab active:cursor-grabbing hover:shadow-md transition-shadow relative group"
                                 >
                                     <CardContent className="p-3">
                                         <p className="font-medium text-sm truncate">{lead.name}</p>

@@ -239,10 +239,21 @@ router.post('/', authenticate, (req, res) => {
 
 // PATCH update lead status (with timestamp tracking)
 router.patch('/:id/status', authenticate, (req, res) => {
-    const db = getDb();
-    const { status } = req.body;
-
     try {
+        if (!migrationDone) {
+            try { ensureTimestampColumns(); migrationDone = true; } catch (e) { /* ignore */ }
+        }
+
+        const db = getDb();
+        if (!db) {
+            return res.status(500).json({ success: false, error: 'Database not initialized' });
+        }
+
+        const status = req.body?.status;
+        if (!status) {
+            return res.status(400).json({ success: false, error: 'Status is required' });
+        }
+
         // Build update query with status-specific timestamp
         const dateCol = STATUS_DATE_COLUMNS[status];
         if (dateCol) {
@@ -264,11 +275,15 @@ router.patch('/:id/status', authenticate, (req, res) => {
 
 // PATCH update lead notes (with smart date parsing)
 router.patch('/:id/notes', authenticate, (req, res) => {
-    const db = getDb();
-    const { notes } = req.body;
-
     try {
-        db.prepare('UPDATE leads SET notes = ?, updated_at = datetime("now") WHERE id = ?').run(notes, req.params.id);
+        const db = getDb();
+        if (!db) {
+            return res.status(500).json({ success: false, error: 'Database not initialized' });
+        }
+
+        const notes = req.body?.notes;
+
+        db.prepare("UPDATE leads SET notes = ?, updated_at = datetime('now') WHERE id = ?").run(notes, req.params.id);
 
         db.prepare(`
             INSERT INTO interactions (id, lead_id, type, summary) VALUES (?, ?, 'system', 'Notes updated')
@@ -285,8 +300,8 @@ router.patch('/:id/notes', authenticate, (req, res) => {
             }
         });
     } catch (error) {
-        console.error(error);
-        res.status(500).json({ success: false, error: 'Failed to update notes' });
+        console.error('[NOTES UPDATE ERROR]', error);
+        res.status(500).json({ success: false, error: 'Failed to update notes', message: error.message });
     }
 });
 
