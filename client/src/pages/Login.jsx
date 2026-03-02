@@ -17,6 +17,12 @@ export default function Login() {
     const handleSubmit = async (e) => {
         e.preventDefault();
         setError('');
+
+        if (!username.trim() || !password) {
+            setError('Please enter both username and password');
+            return;
+        }
+
         setIsSubmitting(true);
 
         const result = await login(username, password);
@@ -39,7 +45,7 @@ export default function Login() {
                     </CardDescription>
                 </CardHeader>
                 <CardContent>
-                    <form onSubmit={handleSubmit} className="space-y-4">
+                    <form onSubmit={handleSubmit} noValidate className="space-y-4">
                         <div className="space-y-2">
                             <label htmlFor="username" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">Username</label>
                             <Input
@@ -47,7 +53,7 @@ export default function Login() {
                                 placeholder="dennis"
                                 value={username}
                                 onChange={(e) => setUsername(e.target.value)}
-                                required
+                                autoComplete="username"
                             />
                         </div>
                         <div className="space-y-2">
@@ -58,7 +64,8 @@ export default function Login() {
                                 placeholder="••••••••"
                                 value={password}
                                 onChange={(e) => setPassword(e.target.value)}
-                                required
+                                autoComplete="current-password"
+                                required={false}
                             />
                         </div>
                         {error && (
