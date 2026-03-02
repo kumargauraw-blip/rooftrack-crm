@@ -1,6 +1,30 @@
 # CRM Fixes - March 2, 2026
 
-## Bug Fixed: Kanban Drag-and-Drop
+## Bug #1: Login Form Password Validation (BLOCKING)
+
+**Issue:** Login form would not submit - browser validation showed "Please fill out this field" on password input even when filled.
+
+**Root Cause:** Password input field had implicit `required` attribute triggering browser HTML5 validation, which wasn't being disabled by form's `noValidate` attribute.
+
+**Files Changed:**
+- `client/src/pages/Login.jsx`
+
+**Fix Applied:**
+```jsx
+<Input
+  id="password"
+  type="password"
+  ...
+  required={false}  // Explicitly disable required validation
+/>
+```
+
+**Testing:**
+- ⏳ Deployed to production, awaiting validation
+
+---
+
+## Bug #2: Kanban Drag-and-Drop
 
 **Issue:** Kanban board cards could not be dragged between swimlanes. Backend returned 500 error when updating lead status.
 
