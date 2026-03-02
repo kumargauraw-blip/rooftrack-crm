@@ -246,9 +246,9 @@ router.patch('/:id/status', authenticate, (req, res) => {
         // Build update query with status-specific timestamp
         const dateCol = STATUS_DATE_COLUMNS[status];
         if (dateCol) {
-            db.prepare(`UPDATE leads SET status = ?, ${dateCol} = datetime("now"), updated_at = datetime("now") WHERE id = ?`).run(status, req.params.id);
+            db.prepare(`UPDATE leads SET status = ?, ${dateCol} = datetime('now'), updated_at = datetime('now') WHERE id = ?`).run(status, req.params.id);
         } else {
-            db.prepare('UPDATE leads SET status = ?, updated_at = datetime("now") WHERE id = ?').run(status, req.params.id);
+            db.prepare(`UPDATE leads SET status = ?, updated_at = datetime('now') WHERE id = ?`).run(status, req.params.id);
         }
 
         db.prepare(`
@@ -257,8 +257,8 @@ router.patch('/:id/status', authenticate, (req, res) => {
 
         res.json({ success: true });
     } catch (error) {
-        console.error(error);
-        res.status(500).json({ success: false, error: 'Update failed' });
+        console.error('[STATUS UPDATE ERROR]', error);
+        res.status(500).json({ success: false, error: 'Update failed', message: error.message });
     }
 });
 
