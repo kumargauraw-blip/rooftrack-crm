@@ -20,8 +20,34 @@ function connect() {
     return db;
 }
 
+function ensureLeadColumns(db) {
+    // Add columns introduced by Customer Lifecycle & Referral Tracking feature
+    // Skip if leads table doesn't exist yet (fresh DB — schema.sql will create it with all cols)
+    const tables = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='leads'").all();
+    if (tables.length === 0) return;
+
+    const newCols = [
+        { name: 'satisfaction_score', def: 'INTEGER' },
+        { name: 'referred_by', def: 'TEXT' },
+        { name: 'referral_source', def: 'TEXT' },
+        { name: 'payment_date', def: 'TEXT' },
+    ];
+    const existing = db.pragma('table_info(leads)').map(c => c.name);
+    for (const col of newCols) {
+        if (!existing.includes(col.name)) {
+            db.exec(`ALTER TABLE leads ADD COLUMN ${col.name} ${col.def}`);
+            console.log(`Added column leads.${col.name}`);
+        }
+    }
+}
+
 function initialize() {
     const db = connect();
+
+    // Migrate: add new columns to existing leads table BEFORE schema
+    // (schema.sql creates indexes on these columns, so they must exist first)
+    ensureLeadColumns(db);
+
     const schema = fs.readFileSync(schemaPath, 'utf8');
     db.exec(schema);
 
