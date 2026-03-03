@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useMemo } from 'react';
 import { useLeads, useCreateLead, useUpdateLeadStatus } from "../hooks/useLeads";
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -78,10 +78,17 @@ function LeadCard({ lead, onDragStart }) {
     );
 }
 
+const KANBAN_PAGE_SIZE = 10;
+
 function KanbanBoard({ leads, searchTerm }) {
     const { mutate: updateStatus } = useUpdateLeadStatus();
     const [draggingId, setDraggingId] = useState(null);
     const [dragOverCol, setDragOverCol] = useState(null);
+    const [visibleCounts, setVisibleCounts] = useState({});
+
+    const getVisible = (key) => visibleCounts[key] || KANBAN_PAGE_SIZE;
+    const showMore = (key) => setVisibleCounts(prev => ({ ...prev, [key]: (prev[key] || KANBAN_PAGE_SIZE) + KANBAN_PAGE_SIZE }));
+    const showLess = (key) => setVisibleCounts(prev => ({ ...prev, [key]: KANBAN_PAGE_SIZE }));
 
     const filteredLeads = leads?.filter(lead =>
         lead.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -123,6 +130,10 @@ function KanbanBoard({ leads, searchTerm }) {
             <div className="flex gap-3 min-w-max">
                 {STATUSES.map((status) => {
                     const columnLeads = filteredLeads?.filter(l => l.status === status.key) || [];
+                    const visible = getVisible(status.key);
+                    const visibleLeads = columnLeads.slice(0, visible);
+                    const hasMore = columnLeads.length > visible;
+                    const canCollapse = visible > KANBAN_PAGE_SIZE;
                     const isOver = dragOverCol === status.key;
 
                     return (
@@ -157,13 +168,35 @@ function KanbanBoard({ leads, searchTerm }) {
                                         {isOver ? 'Drop here' : 'No leads'}
                                     </div>
                                 )}
-                                {columnLeads.map((lead) => (
+                                {visibleLeads.map((lead) => (
                                     <LeadCard
                                         key={lead.id}
                                         lead={lead}
                                         onDragStart={setDraggingId}
                                     />
                                 ))}
+
+                                {/* Pagination controls */}
+                                {(hasMore || canCollapse) && (
+                                    <div className="flex gap-1.5 mt-1">
+                                        {hasMore && (
+                                            <button
+                                                onClick={() => showMore(status.key)}
+                                                className="flex-1 text-xs text-blue-600 hover:text-blue-800 bg-white border border-blue-200 rounded py-1.5 font-medium hover:bg-blue-50 transition-colors"
+                                            >
+                                                Show more ({columnLeads.length - visible})
+                                            </button>
+                                        )}
+                                        {canCollapse && (
+                                            <button
+                                                onClick={() => showLess(status.key)}
+                                                className="flex-1 text-xs text-slate-500 hover:text-slate-700 bg-white border border-slate-200 rounded py-1.5 font-medium hover:bg-slate-50 transition-colors"
+                                            >
+                                                Show less
+                                            </button>
+                                        )}
+                                    </div>
+                                )}
                             </div>
                         </div>
                     );
@@ -243,8 +276,15 @@ function TableView({ leads, searchTerm, statusFilter }) {
     );
 }
 
+function getSixMonthsAgo() {
+    const d = new Date();
+    d.setMonth(d.getMonth() - 6);
+    return d.toISOString().split('T')[0];
+}
+
 export default function Leads() {
-    const { data: leads, isLoading } = useLeads();
+    const completedSince = useMemo(() => getSixMonthsAgo(), []);
+    const { data: leads, isLoading } = useLeads({ completedSince });
     const { mutate: createLead } = useCreateLead();
 
     const [searchTerm, setSearchTerm] = useState('');

@@ -202,7 +202,23 @@ router.get('/', authenticate, (req, res) => {
         try { ensureTimestampColumns(); ensureLifecycleColumns(); migrationDone = true; } catch (e) { /* ignore */ }
     }
     const db = getDb();
-    const leads = db.prepare('SELECT * FROM leads ORDER BY created_at DESC').all();
+    const { completedSince } = req.query;
+
+    let leads;
+    if (completedSince) {
+        // Active pipeline statuses always returned; terminal statuses filtered by date
+        leads = db.prepare(`
+            SELECT * FROM leads
+            WHERE status NOT IN ('completed', 'paid', 'review_received')
+               OR (status = 'completed' AND completed_at >= ?)
+               OR (status = 'paid' AND paid_at >= ?)
+               OR (status = 'review_received' AND review_received_at >= ?)
+            ORDER BY created_at DESC
+        `).all(completedSince, completedSince, completedSince);
+    } else {
+        leads = db.prepare('SELECT * FROM leads ORDER BY created_at DESC').all();
+    }
+
     res.json({ success: true, data: leads });
 });
 

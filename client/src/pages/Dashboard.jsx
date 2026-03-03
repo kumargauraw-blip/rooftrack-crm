@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useDashboardSummary } from "../hooks/useDashboard";
 import { Users, Calendar, Hammer, DollarSign, Activity } from "lucide-react";
 import StatsCard from "../components/StatsCard";
@@ -9,13 +9,19 @@ import ActivityFeed from "../components/ActivityFeed";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { useLeads } from "../hooks/useLeads";
 
+function getSixMonthsAgo() {
+    const d = new Date();
+    d.setMonth(d.getMonth() - 6);
+    return d.toISOString().split('T')[0];
+}
+
 export default function Dashboard() {
     const { data: summary, isLoading } = useDashboardSummary();
-    const { data: leads, isLoading: leadsLoading } = useLeads();
+    const completedSince = useMemo(() => getSixMonthsAgo(), []);
+    const { data: leads, isLoading: leadsLoading } = useLeads({ completedSince });
 
     // Filter States
     const [timeFilter, setTimeFilter] = useState('all'); // all, 7days, 30days, 90days
-    const [limitFilter, setLimitFilter] = useState('all'); // all, 5, 10, 20
     const [statusFilter, setStatusFilter] = useState('all');
 
     if (isLoading || leadsLoading) {
@@ -120,20 +126,10 @@ export default function Dashboard() {
                             <option value="30days">Last 30 Days</option>
                             <option value="90days">Last 3 Months</option>
                         </select>
-                        <select
-                            className="h-9 rounded-md border border-input bg-background px-3 text-xs"
-                            value={limitFilter}
-                            onChange={(e) => setLimitFilter(e.target.value)}
-                        >
-                            <option value="all">Show All</option>
-                            <option value="5">Limit 5</option>
-                            <option value="10">Limit 10</option>
-                            <option value="20">Limit 20</option>
-                        </select>
                     </div>
                 </CardHeader>
                 <CardContent>
-                    <PipelineFunnel leads={filteredLeads} limit={limitFilter === 'all' ? 9999 : parseInt(limitFilter)} />
+                    <PipelineFunnel leads={filteredLeads} />
                 </CardContent>
             </Card>
 

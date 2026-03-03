@@ -1,11 +1,13 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '../lib/api';
 
-export function useLeads() {
+export function useLeads({ completedSince } = {}) {
     return useQuery({
-        queryKey: ['leads'],
+        queryKey: ['leads', { completedSince }],
         queryFn: async () => {
-            const { data } = await api.get('/leads');
+            const params = {};
+            if (completedSince) params.completedSince = completedSince;
+            const { data } = await api.get('/leads', { params });
             return data.data;
         },
     });
