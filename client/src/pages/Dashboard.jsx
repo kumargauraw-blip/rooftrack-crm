@@ -6,6 +6,7 @@ import PipelineFunnel from "../components/PipelineFunnel";
 import RevenueChart from "../components/RevenueChart";
 import ChannelChart from "../components/ChannelChart";
 import ActivityFeed from "../components/ActivityFeed";
+import StormMap from "../components/StormMap";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { useLeads } from "../hooks/useLeads";
 
@@ -135,15 +136,7 @@ export default function Dashboard() {
 
             {/* Activity Feed */}
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
-                <Card className="col-span-4">
-                    {/* Placeholder for Map or Storm Map in future */}
-                    <CardHeader>
-                        <CardTitle>Storm Activity Map</CardTitle>
-                    </CardHeader>
-                    <CardContent className="h-[300px] flex items-center justify-center bg-slate-100 rounded-md">
-                        <p className="text-muted-foreground">Interactive Storm Map Integration (Coming Soon)</p>
-                    </CardContent>
-                </Card>
+                <StormMap />
 
                 <Card className="col-span-3">
                     <CardHeader>
