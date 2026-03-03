@@ -139,3 +139,52 @@ CREATE TABLE IF NOT EXISTS reminders (
 
 CREATE INDEX IF NOT EXISTS idx_bot_users_telegram ON bot_users(telegram_id);
 CREATE INDEX IF NOT EXISTS idx_reminders_due ON reminders(remind_at, sent);
+
+-- Referral campaigns
+CREATE TABLE IF NOT EXISTS referral_campaigns (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  created_at TEXT DEFAULT (datetime('now')),
+  sent_at TEXT,
+  status TEXT DEFAULT 'draft',
+  message_template TEXT,
+  incentive_type TEXT,
+  incentive_value REAL,
+  criteria TEXT
+);
+
+-- Referral campaign recipients
+CREATE TABLE IF NOT EXISTS referral_campaign_recipients (
+  id TEXT PRIMARY KEY,
+  campaign_id TEXT NOT NULL,
+  customer_lead_id TEXT NOT NULL,
+  sent_at TEXT,
+  responded INTEGER DEFAULT 0,
+  referral_lead_id TEXT,
+  FOREIGN KEY (campaign_id) REFERENCES referral_campaigns(id),
+  FOREIGN KEY (customer_lead_id) REFERENCES leads(id),
+  FOREIGN KEY (referral_lead_id) REFERENCES leads(id)
+);
+
+-- Referral incentives
+CREATE TABLE IF NOT EXISTS referral_incentives (
+  id TEXT PRIMARY KEY,
+  referrer_lead_id TEXT NOT NULL,
+  referred_lead_id TEXT NOT NULL,
+  campaign_id TEXT,
+  incentive_type TEXT,
+  incentive_value REAL,
+  status TEXT DEFAULT 'pending',
+  created_at TEXT DEFAULT (datetime('now')),
+  paid_at TEXT,
+  FOREIGN KEY (referrer_lead_id) REFERENCES leads(id),
+  FOREIGN KEY (referred_lead_id) REFERENCES leads(id),
+  FOREIGN KEY (campaign_id) REFERENCES referral_campaigns(id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_referral_campaigns_status ON referral_campaigns(status);
+CREATE INDEX IF NOT EXISTS idx_referral_recipients_campaign ON referral_campaign_recipients(campaign_id);
+CREATE INDEX IF NOT EXISTS idx_referral_incentives_referrer ON referral_incentives(referrer_lead_id);
+CREATE INDEX IF NOT EXISTS idx_referral_incentives_referred ON referral_incentives(referred_lead_id);
+CREATE INDEX IF NOT EXISTS idx_leads_referred_by ON leads(referred_by);
+CREATE INDEX IF NOT EXISTS idx_leads_referral_source ON leads(referral_source);

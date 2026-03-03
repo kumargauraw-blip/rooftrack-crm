@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useLead, useUpdateLeadStatus, useUpdateLeadNotes } from '../hooks/useLeads';
+import { useUpdateSatisfaction, useCustomerReferrals } from '../hooks/useCustomers';
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import ActivityFeed from "@/components/ActivityFeed";
-import { Phone, Mail, MapPin, Calendar, DollarSign, ArrowLeft, Save, FileText } from 'lucide-react';
+import { Phone, Mail, MapPin, Calendar, DollarSign, ArrowLeft, Save, FileText, Star, Share2 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 export default function LeadDetail() {
@@ -13,6 +14,8 @@ export default function LeadDetail() {
     const { data: lead, isLoading } = useLead(id);
     const { mutate: updateStatus } = useUpdateLeadStatus();
     const { mutate: updateNotes, isPending: isSavingNotes } = useUpdateLeadNotes();
+    const { mutate: updateSatisfaction } = useUpdateSatisfaction();
+    const { data: referrals } = useCustomerReferrals(id);
 
     const navigate = useNavigate();
 
@@ -146,6 +149,18 @@ export default function LeadDetail() {
                                 <span className="text-sm">Estimated Value</span>
                                 <span className="font-semibold">${lead.estimated_value?.toLocaleString()}</span>
                             </div>
+                            {lead.actual_value != null && (
+                                <div className="flex justify-between items-center bg-slate-50 p-3 rounded">
+                                    <span className="text-sm">Actual Value</span>
+                                    <span className="font-semibold">${lead.actual_value?.toLocaleString()}</span>
+                                </div>
+                            )}
+                            {lead.payment_date && (
+                                <div className="flex justify-between items-center bg-slate-50 p-3 rounded">
+                                    <span className="text-sm">Payment Date</span>
+                                    <span className="font-semibold">{new Date(lead.payment_date).toLocaleDateString()}</span>
+                                </div>
+                            )}
 
                             {lead.jobs && lead.jobs.length > 0 && (
                                 <div className="pt-4 border-t">
@@ -160,6 +175,74 @@ export default function LeadDetail() {
                             )}
                         </CardContent>
                     </Card>
+
+                    {/* Satisfaction Score - show for completed+ leads */}
+                    {['completed', 'paid', 'review_received'].includes(lead.status) && (
+                        <Card>
+                            <CardHeader>
+                                <CardTitle className="text-lg flex items-center gap-2">
+                                    <Star className="h-4 w-4" /> Satisfaction
+                                </CardTitle>
+                            </CardHeader>
+                            <CardContent>
+                                <div className="flex gap-1">
+                                    {[1, 2, 3, 4, 5].map((star) => (
+                                        <button
+                                            key={star}
+                                            type="button"
+                                            onClick={() => updateSatisfaction({ id: lead.id, satisfaction_score: star })}
+                                            className="cursor-pointer hover:scale-110 transition-transform"
+                                        >
+                                            <Star
+                                                className={`h-6 w-6 ${star <= (lead.satisfaction_score || 0) ? 'fill-yellow-400 text-yellow-400' : 'text-gray-300'}`}
+                                            />
+                                        </button>
+                                    ))}
+                                </div>
+                                {!lead.satisfaction_score && (
+                                    <p className="text-xs text-muted-foreground mt-2">Click a star to rate</p>
+                                )}
+                            </CardContent>
+                        </Card>
+                    )}
+
+                    {/* Referral Info */}
+                    {(lead.referred_by || lead.referral_source || (referrals && referrals.length > 0)) && (
+                        <Card>
+                            <CardHeader>
+                                <CardTitle className="text-lg flex items-center gap-2">
+                                    <Share2 className="h-4 w-4" /> Referrals
+                                </CardTitle>
+                            </CardHeader>
+                            <CardContent className="space-y-3">
+                                {lead.referral_source && (
+                                    <div className="flex justify-between items-center">
+                                        <span className="text-sm text-muted-foreground">Source</span>
+                                        <Badge variant="outline">{lead.referral_source}</Badge>
+                                    </div>
+                                )}
+                                {lead.referred_by && (
+                                    <div className="flex justify-between items-center">
+                                        <span className="text-sm text-muted-foreground">Referred by</span>
+                                        <Link to={`/leads/${lead.referred_by}`} className="text-sm text-blue-600 hover:underline font-medium">
+                                            View Referrer
+                                        </Link>
+                                    </div>
+                                )}
+                                {referrals && referrals.length > 0 && (
+                                    <div className="pt-2 border-t">
+                                        <p className="text-sm font-medium mb-2">Referred {referrals.length} lead{referrals.length !== 1 ? 's' : ''}</p>
+                                        {referrals.map(ref => (
+                                            <Link key={ref.id} to={`/leads/${ref.id}`} className="flex justify-between text-sm py-1 hover:bg-muted/30 px-1 rounded">
+                                                <span>{ref.name}</span>
+                                                <Badge variant="secondary" className="text-xs">{ref.status}</Badge>
+                                            </Link>
+                                        ))}
+                                    </div>
+                                )}
+                            </CardContent>
+                        </Card>
+                    )}
                 </div>
 
                 {/* Right Column: Timeline & Interactions */}

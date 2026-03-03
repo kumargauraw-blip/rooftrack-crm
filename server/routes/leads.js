@@ -166,12 +166,32 @@ function ensureTimestampColumns() {
     }
 }
 
-// Run migration on module load
+// ---- Ensure referral/lifecycle columns exist (migration) ----
+function ensureLifecycleColumns() {
+    const db = getDb();
+    const newColumns = [
+        { name: 'satisfaction_score', type: 'INTEGER' },
+        { name: 'referred_by', type: 'TEXT' },
+        { name: 'referral_source', type: 'TEXT' },
+        { name: 'payment_date', type: 'TEXT' },
+    ];
+
+    const existingCols = db.prepare("PRAGMA table_info(leads)").all().map(c => c.name);
+
+    for (const col of newColumns) {
+        if (!existingCols.includes(col.name)) {
+            db.exec(`ALTER TABLE leads ADD COLUMN ${col.name} ${col.type}`);
+        }
+    }
+}
+
+// Run migrations on module load
 try {
     ensureTimestampColumns();
+    ensureLifecycleColumns();
 } catch (e) {
     // DB might not be initialized yet, will retry on first request
-    console.log('Will retry timestamp column migration on first request');
+    console.log('Will retry column migrations on first request');
 }
 
 let migrationDone = false;
@@ -179,7 +199,7 @@ let migrationDone = false;
 // GET all leads (with filters)
 router.get('/', authenticate, (req, res) => {
     if (!migrationDone) {
-        try { ensureTimestampColumns(); migrationDone = true; } catch (e) { /* ignore */ }
+        try { ensureTimestampColumns(); ensureLifecycleColumns(); migrationDone = true; } catch (e) { /* ignore */ }
     }
     const db = getDb();
     const leads = db.prepare('SELECT * FROM leads ORDER BY created_at DESC').all();
@@ -206,19 +226,27 @@ router.get('/:id', authenticate, (req, res) => {
 // POST create lead
 router.post('/', authenticate, (req, res) => {
     const db = getDb();
-    const { name, phone, email, address, source_channel, notes } = req.body;
+    const { name, phone, email, address, source_channel, notes, referred_by, referral_source } = req.body;
     const id = crypto.randomUUID();
 
     try {
         const stmt = db.prepare(`
-            INSERT INTO leads (id, name, email, phone, address, source_channel, notes)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO leads (id, name, email, phone, address, source_channel, notes, referred_by, referral_source)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         `);
-        stmt.run(id, name, email, phone, address, source_channel || 'manual', notes);
+        stmt.run(id, name, email, phone, address, source_channel || 'manual', notes, referred_by || null, referral_source || null);
 
         db.prepare(`
             INSERT INTO interactions (id, lead_id, type, summary) VALUES (?, ?, 'system', 'Lead created manually')
         `).run(crypto.randomUUID(), id);
+
+        // Auto-create referral incentive if referred_by is set
+        if (referred_by) {
+            db.prepare(`
+                INSERT INTO referral_incentives (id, referrer_lead_id, referred_lead_id, incentive_type, incentive_value, status)
+                VALUES (?, ?, ?, 'gift_card', 50.00, 'pending')
+            `).run(crypto.randomUUID(), referred_by, id);
+        }
 
         // Smart note parsing - auto-create appointments
         const autoAppointments = parseNotesForDates(notes, id, db);
@@ -241,7 +269,7 @@ router.post('/', authenticate, (req, res) => {
 router.patch('/:id/status', authenticate, (req, res) => {
     try {
         if (!migrationDone) {
-            try { ensureTimestampColumns(); migrationDone = true; } catch (e) { /* ignore */ }
+            try { ensureTimestampColumns(); ensureLifecycleColumns(); migrationDone = true; } catch (e) { /* ignore */ }
         }
 
         const db = getDb();

@@ -10,7 +10,10 @@ import {
     LogOut,
     Menu,
     X,
-    Hammer
+    Hammer,
+    Heart,
+    Gift,
+    PieChart
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -28,9 +31,11 @@ export default function Layout() {
     const navItems = [
         { to: '/', icon: LayoutDashboard, label: 'Dashboard' },
         { to: '/leads', icon: Users, label: 'Leads' },
+        { to: '/customers', icon: Heart, label: 'Customers' },
+        { to: '/referrals', icon: Gift, label: 'Referrals' },
+        { to: '/attribution', icon: PieChart, label: 'Attribution' },
         { to: '/calendar', icon: Calendar, label: 'Calendar' },
         { to: '/reports', icon: BarChart3, label: 'Reports' },
-        // { to: '/settings', icon: Settings, label: 'Settings' },
     ];
 
     return (

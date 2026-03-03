@@ -8,6 +8,9 @@ import Leads from './pages/Leads';
 import LeadDetail from './pages/LeadDetail';
 import CalendarPage from './pages/Calendar';
 import Reports from './pages/Reports';
+import Customers from './pages/Customers';
+import ReferralCampaigns from './pages/ReferralCampaigns';
+import RevenueAttribution from './pages/RevenueAttribution';
 
 const queryClient = new QueryClient();
 
@@ -38,6 +41,10 @@ export default function App() {
               <Route path="leads/:id" element={<LeadDetail />} />
               <Route path="calendar" element={<CalendarPage />} />
               <Route path="reports" element={<Reports />} />
+              <Route path="customers" element={<Customers />} />
+              <Route path="referrals" element={<ReferralCampaigns />} />
+              <Route path="referrals/:id" element={<ReferralCampaigns />} />
+              <Route path="attribution" element={<RevenueAttribution />} />
             </Route>
           </Routes>
         </AuthProvider>
