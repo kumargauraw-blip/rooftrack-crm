@@ -14,9 +14,6 @@ const STATUSES = [
     { key: 'quoted', label: 'Quoted', color: 'bg-amber-500', lightBg: 'bg-amber-50', border: 'border-amber-200' },
     { key: 'accepted', label: 'Accepted', color: 'bg-emerald-500', lightBg: 'bg-emerald-50', border: 'border-emerald-200' },
     { key: 'scheduled', label: 'Service Scheduled', color: 'bg-purple-500', lightBg: 'bg-purple-50', border: 'border-purple-200' },
-    { key: 'completed', label: 'Service Completed', color: 'bg-teal-500', lightBg: 'bg-teal-50', border: 'border-teal-200' },
-    { key: 'paid', label: 'Payment Received', color: 'bg-green-600', lightBg: 'bg-green-50', border: 'border-green-200' },
-    { key: 'review_received', label: 'Review Received', color: 'bg-sky-500', lightBg: 'bg-sky-50', border: 'border-sky-200' },
     { key: 'lost', label: 'Lost', color: 'bg-red-500', lightBg: 'bg-red-50', border: 'border-red-200' },
 ];
 
@@ -25,9 +22,6 @@ const STATUS_DATE_MAP = {
     scheduled: 'scheduled_at',
     quoted: 'quoted_at',
     accepted: 'accepted_at',
-    completed: 'completed_at',
-    paid: 'paid_at',
-    review_received: 'review_received_at',
     lost: 'lost_at',
 };
 

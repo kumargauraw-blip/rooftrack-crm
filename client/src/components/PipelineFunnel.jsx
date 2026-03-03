@@ -13,9 +13,6 @@ const STAGES = [
     { id: 'quoted', label: 'Quoted', color: 'bg-orange-500' },
     { id: 'accepted', label: 'Accepted', color: 'bg-green-500' },
     { id: 'scheduled', label: 'Service Scheduled', color: 'bg-purple-500' },
-    { id: 'completed', label: 'Service Completed', color: 'bg-teal-500' },
-    { id: 'paid', label: 'Payment Received', color: 'bg-emerald-600' },
-    { id: 'review_received', label: 'Review Received', color: 'bg-yellow-500' },
 ];
 
 export default function PipelineFunnel({ leads }) {

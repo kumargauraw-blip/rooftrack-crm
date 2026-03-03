@@ -51,6 +51,9 @@ function initialize() {
     const schema = fs.readFileSync(schemaPath, 'utf8');
     db.exec(schema);
 
+    // Backfill completed_at for imported customers that have NULL completed_at
+    db.exec(`UPDATE leads SET completed_at = '2025-12-31' WHERE status IN ('completed', 'paid', 'review_received') AND completed_at IS NULL`);
+
     // Check if we need to seed
     const userCount = db.prepare('SELECT count(*) as count FROM users').get();
     if (userCount.count === 0 && fs.existsSync(seedPath)) {

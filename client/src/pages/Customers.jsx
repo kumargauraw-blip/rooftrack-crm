@@ -127,6 +127,7 @@ export default function Customers() {
                                 <th className="text-left py-3 px-4 font-medium">Customer</th>
                                 <th className="text-left py-3 px-4 font-medium hidden md:table-cell">Contact</th>
                                 <th className="text-left py-3 px-4 font-medium">Status</th>
+                                <th className="text-left py-3 px-4 font-medium hidden sm:table-cell">Status Date</th>
                                 <th className="text-left py-3 px-4 font-medium hidden sm:table-cell">Job Value</th>
                                 <th className="text-left py-3 px-4 font-medium">Satisfaction</th>
                                 <th className="text-center py-3 px-4 font-medium hidden sm:table-cell">Referrals</th>
@@ -158,6 +159,9 @@ export default function Customers() {
                                         <Badge variant={customer.status === 'review_received' ? 'success' : customer.status === 'paid' ? 'info' : 'secondary'}>
                                             {customer.status.replace('_', ' ')}
                                         </Badge>
+                                    </td>
+                                    <td className="py-3 px-4 hidden sm:table-cell text-muted-foreground">
+                                        {customer.completed_at ? new Date(customer.completed_at).toLocaleDateString() : '—'}
                                     </td>
                                     <td className="py-3 px-4 hidden sm:table-cell">
                                         ${(customer.actual_value || customer.estimated_value || 0).toLocaleString()}
