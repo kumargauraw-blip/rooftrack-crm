@@ -22,23 +22,7 @@ export default function PipelineFunnel({ leads }) {
     const { mutate: updateStatus } = useUpdateLeadStatus();
     const navigate = useNavigate();
     const [draggingId, setDraggingId] = useState(null);
-    const [visibleCounts, setVisibleCounts] = useState({});
-
-    const getVisible = (stageId) => visibleCounts[stageId] || PAGE_SIZE;
-
-    const showMore = (stageId) => {
-        setVisibleCounts(prev => ({
-            ...prev,
-            [stageId]: (prev[stageId] || PAGE_SIZE) + PAGE_SIZE,
-        }));
-    };
-
-    const showLess = (stageId) => {
-        setVisibleCounts(prev => ({
-            ...prev,
-            [stageId]: PAGE_SIZE,
-        }));
-    };
+    const [visibleLimit, setVisibleLimit] = useState(PAGE_SIZE);
 
     const handleDragStart = (e, leadId) => {
         e.dataTransfer.setData('text/plain', String(leadId));
@@ -71,86 +55,98 @@ export default function PipelineFunnel({ leads }) {
         e.dataTransfer.dropEffect = 'move';
     };
 
+    const overflowColumns = STAGES.filter(stage => {
+        const count = leads.filter(l => l.status === stage.id).length;
+        return count > visibleLimit;
+    });
+    const isExpanded = visibleLimit > PAGE_SIZE;
+
     return (
-        <div className="flex gap-4 overflow-x-auto pb-4 min-full">
-            {STAGES.map((stage) => {
-                const fullStageLeads = leads.filter(l => l.status === stage.id);
-                const visible = getVisible(stage.id);
-                const stageLeads = fullStageLeads.slice(0, visible);
-                const hasMore = fullStageLeads.length > visible;
-                const canCollapse = visible > PAGE_SIZE;
+        <div>
+            <div className="flex gap-4 overflow-x-auto pb-4 min-full">
+                {STAGES.map((stage) => {
+                    const fullStageLeads = leads.filter(l => l.status === stage.id);
+                    const stageLeads = fullStageLeads.slice(0, visibleLimit);
+                    const isTruncated = fullStageLeads.length > visibleLimit;
 
-                return (
-                    <div
-                        key={stage.id}
-                        className="min-w-[240px] w-full bg-slate-100 dark:bg-slate-900/50 rounded-lg p-3 flex flex-col"
-                        onDragOver={handleDragOver}
-                        onDrop={(e) => handleDrop(e, stage.id)}
-                    >
-                        <div className={`text-xs font-semibold uppercase mb-3 px-2 py-1 rounded text-white flex justify-between ${stage.color}`}>
-                            {stage.label}
-                            <span className="bg-white/20 px-1.5 rounded text-[10px]">{fullStageLeads.length}</span>
-                        </div>
-
-                        <div className="space-y-2 flex-1">
-                            {stageLeads.map(lead => (
-                                <Card
-                                    key={lead.id}
-                                    draggable
-                                    onDragStart={(e) => handleDragStart(e, lead.id)}
-                                    onDragEnd={handleDragEnd}
-                                    onClick={() => navigate(`/leads/${lead.id}`)}
-                                    className="cursor-grab active:cursor-grabbing hover:shadow-md transition-shadow relative group"
-                                >
-                                    <CardContent className="p-3">
-                                        <p className="font-medium text-sm truncate">{lead.name}</p>
-
-                                        {/* New Details: City & Priority */}
-                                        <div className="flex justify-between items-center mt-1 text-xs text-muted-foreground">
-                                            <span>{lead.city || 'Unknown City'}</span>
-                                            <span className={`font-medium ${lead.priority === 'hot' ? 'text-red-500' :
-                                                lead.priority === 'warm' ? 'text-orange-500' : 'text-blue-500'
-                                                }`}>
-                                                {lead.priority}
-                                            </span>
-                                        </div>
-
-                                        {/* Footer: Source & Last Activity */}
-                                        <div className="flex justify-between items-end mt-3 pt-2 border-t border-slate-100">
-                                            <Badge variant="outline" className="text-[10px] h-5 font-normal text-slate-500">{lead.source_channel}</Badge>
-                                            <span className="text-[10px] text-slate-400">
-                                                {formatDate(lead.updated_at) || 'Just now'}
-                                            </span>
-                                        </div>
-                                    </CardContent>
-                                </Card>
-                            ))}
-                        </div>
-
-                        {/* Pagination controls */}
-                        {(hasMore || canCollapse) && (
-                            <div className="flex gap-2 mt-2">
-                                {hasMore && (
-                                    <button
-                                        onClick={() => showMore(stage.id)}
-                                        className="flex-1 text-xs text-blue-600 hover:text-blue-800 bg-white border border-blue-200 rounded py-1.5 font-medium hover:bg-blue-50 transition-colors"
-                                    >
-                                        Show more ({fullStageLeads.length - visible} remaining)
-                                    </button>
-                                )}
-                                {canCollapse && (
-                                    <button
-                                        onClick={() => showLess(stage.id)}
-                                        className="flex-1 text-xs text-slate-500 hover:text-slate-700 bg-white border border-slate-200 rounded py-1.5 font-medium hover:bg-slate-50 transition-colors"
-                                    >
-                                        Show less
-                                    </button>
-                                )}
+                    return (
+                        <div
+                            key={stage.id}
+                            className="min-w-[240px] w-full bg-slate-100 dark:bg-slate-900/50 rounded-lg p-3 flex flex-col"
+                            onDragOver={handleDragOver}
+                            onDrop={(e) => handleDrop(e, stage.id)}
+                        >
+                            <div className={`text-xs font-semibold uppercase mb-3 px-2 py-1 rounded text-white flex justify-between ${stage.color}`}>
+                                {stage.label}
+                                <span className="bg-white/20 px-1.5 rounded text-[10px]">{fullStageLeads.length}</span>
                             </div>
-                        )}
-                    </div>
-                )
-            })}
+
+                            <div className="space-y-2 flex-1">
+                                {stageLeads.map(lead => (
+                                    <Card
+                                        key={lead.id}
+                                        draggable
+                                        onDragStart={(e) => handleDragStart(e, lead.id)}
+                                        onDragEnd={handleDragEnd}
+                                        onClick={() => navigate(`/leads/${lead.id}`)}
+                                        className="cursor-grab active:cursor-grabbing hover:shadow-md transition-shadow relative group"
+                                    >
+                                        <CardContent className="p-3">
+                                            <p className="font-medium text-sm truncate">{lead.name}</p>
+
+                                            {/* New Details: City & Priority */}
+                                            <div className="flex justify-between items-center mt-1 text-xs text-muted-foreground">
+                                                <span>{lead.city || 'Unknown City'}</span>
+                                                <span className={`font-medium ${lead.priority === 'hot' ? 'text-red-500' :
+                                                    lead.priority === 'warm' ? 'text-orange-500' : 'text-blue-500'
+                                                    }`}>
+                                                    {lead.priority}
+                                                </span>
+                                            </div>
+
+                                            {/* Footer: Source & Last Activity */}
+                                            <div className="flex justify-between items-end mt-3 pt-2 border-t border-slate-100">
+                                                <Badge variant="outline" className="text-[10px] h-5 font-normal text-slate-500">{lead.source_channel}</Badge>
+                                                <span className="text-[10px] text-slate-400">
+                                                    {formatDate(lead.updated_at) || 'Just now'}
+                                                </span>
+                                            </div>
+                                        </CardContent>
+                                    </Card>
+                                ))}
+                            </div>
+
+                            {isTruncated && (
+                                <p className="text-[11px] text-slate-400 text-center mt-2">
+                                    showing {stageLeads.length} of {fullStageLeads.length}
+                                </p>
+                            )}
+                        </div>
+                    )
+                })}
+            </div>
+
+            {/* Board-level pagination control */}
+            {(overflowColumns.length > 0 || isExpanded) && (
+                <div className="flex items-center justify-center gap-3 mt-2 py-3 px-4 bg-slate-50 dark:bg-slate-900/30 border border-slate-200 rounded-lg">
+                    {overflowColumns.length > 0 && (
+                        <button
+                            onClick={() => setVisibleLimit(prev => prev + PAGE_SIZE)}
+                            className="text-sm text-blue-600 hover:text-blue-800 bg-white border border-blue-200 rounded-md px-4 py-2 font-medium hover:bg-blue-50 transition-colors"
+                        >
+                            Show more ({overflowColumns.length} {overflowColumns.length === 1 ? 'column has' : 'columns have'} hidden cards)
+                        </button>
+                    )}
+                    {isExpanded && (
+                        <button
+                            onClick={() => setVisibleLimit(PAGE_SIZE)}
+                            className="text-sm text-slate-500 hover:text-slate-700 bg-white border border-slate-200 rounded-md px-4 py-2 font-medium hover:bg-slate-50 transition-colors"
+                        >
+                            Show less
+                        </button>
+                    )}
+                </div>
+            )}
         </div>
     );
 }

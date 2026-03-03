@@ -84,11 +84,7 @@ function KanbanBoard({ leads, searchTerm }) {
     const { mutate: updateStatus } = useUpdateLeadStatus();
     const [draggingId, setDraggingId] = useState(null);
     const [dragOverCol, setDragOverCol] = useState(null);
-    const [visibleCounts, setVisibleCounts] = useState({});
-
-    const getVisible = (key) => visibleCounts[key] || KANBAN_PAGE_SIZE;
-    const showMore = (key) => setVisibleCounts(prev => ({ ...prev, [key]: (prev[key] || KANBAN_PAGE_SIZE) + KANBAN_PAGE_SIZE }));
-    const showLess = (key) => setVisibleCounts(prev => ({ ...prev, [key]: KANBAN_PAGE_SIZE }));
+    const [visibleLimit, setVisibleLimit] = useState(KANBAN_PAGE_SIZE);
 
     const filteredLeads = leads?.filter(lead =>
         lead.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -125,83 +121,95 @@ function KanbanBoard({ leads, searchTerm }) {
         }
     };
 
+    const overflowColumns = STATUSES.filter(status => {
+        const count = filteredLeads?.filter(l => l.status === status.key).length || 0;
+        return count > visibleLimit;
+    });
+    const isExpanded = visibleLimit > KANBAN_PAGE_SIZE;
+
     return (
-        <div className="overflow-x-auto pb-4">
-            <div className="flex gap-3 min-w-max">
-                {STATUSES.map((status) => {
-                    const columnLeads = filteredLeads?.filter(l => l.status === status.key) || [];
-                    const visible = getVisible(status.key);
-                    const visibleLeads = columnLeads.slice(0, visible);
-                    const hasMore = columnLeads.length > visible;
-                    const canCollapse = visible > KANBAN_PAGE_SIZE;
-                    const isOver = dragOverCol === status.key;
+        <div>
+            <div className="overflow-x-auto pb-4">
+                <div className="flex gap-3 min-w-max">
+                    {STATUSES.map((status) => {
+                        const columnLeads = filteredLeads?.filter(l => l.status === status.key) || [];
+                        const visibleLeads = columnLeads.slice(0, visibleLimit);
+                        const isTruncated = columnLeads.length > visibleLimit;
+                        const isOver = dragOverCol === status.key;
 
-                    return (
-                        <div
-                            key={status.key}
-                            className={`w-[220px] flex-shrink-0 rounded-lg border-2 transition-colors duration-150 ${
-                                isOver ? `${status.border} ${status.lightBg} border-dashed` : 'border-slate-200 bg-slate-50/50'
-                            }`}
-                            onDragOver={(e) => handleDragOver(e, status.key)}
-                            onDragLeave={(e) => handleDragLeave(e, status.key)}
-                            onDrop={(e) => handleDrop(e, status.key)}
-                        >
-                            {/* Column header */}
-                            <div className="p-3 border-b border-slate-200">
-                                <div className="flex items-center justify-between">
-                                    <div className="flex items-center gap-2">
-                                        <div className={`w-2.5 h-2.5 rounded-full ${status.color}`} />
-                                        <span className="text-xs font-semibold text-slate-700">{status.label}</span>
+                        return (
+                            <div
+                                key={status.key}
+                                className={`w-[220px] flex-shrink-0 rounded-lg border-2 transition-colors duration-150 ${
+                                    isOver ? `${status.border} ${status.lightBg} border-dashed` : 'border-slate-200 bg-slate-50/50'
+                                }`}
+                                onDragOver={(e) => handleDragOver(e, status.key)}
+                                onDragLeave={(e) => handleDragLeave(e, status.key)}
+                                onDrop={(e) => handleDrop(e, status.key)}
+                            >
+                                {/* Column header */}
+                                <div className="p-3 border-b border-slate-200">
+                                    <div className="flex items-center justify-between">
+                                        <div className="flex items-center gap-2">
+                                            <div className={`w-2.5 h-2.5 rounded-full ${status.color}`} />
+                                            <span className="text-xs font-semibold text-slate-700">{status.label}</span>
+                                        </div>
+                                        <span className="text-xs font-medium text-slate-400 bg-white rounded-full px-2 py-0.5 border">
+                                            {columnLeads.length}
+                                        </span>
                                     </div>
-                                    <span className="text-xs font-medium text-slate-400 bg-white rounded-full px-2 py-0.5 border">
-                                        {columnLeads.length}
-                                    </span>
                                 </div>
-                            </div>
 
-                            {/* Cards */}
-                            <div className="p-2 space-y-2 min-h-[120px] max-h-[calc(100vh-280px)] overflow-y-auto">
-                                {columnLeads.length === 0 && (
-                                    <div className={`text-xs text-center py-6 rounded-md border border-dashed transition-colors ${
-                                        isOver ? `${status.border} text-slate-500` : 'border-slate-200 text-slate-300'
-                                    }`}>
-                                        {isOver ? 'Drop here' : 'No leads'}
-                                    </div>
-                                )}
-                                {visibleLeads.map((lead) => (
-                                    <LeadCard
-                                        key={lead.id}
-                                        lead={lead}
-                                        onDragStart={setDraggingId}
-                                    />
-                                ))}
+                                {/* Cards */}
+                                <div className="p-2 space-y-2 min-h-[120px] max-h-[calc(100vh-280px)] overflow-y-auto">
+                                    {columnLeads.length === 0 && (
+                                        <div className={`text-xs text-center py-6 rounded-md border border-dashed transition-colors ${
+                                            isOver ? `${status.border} text-slate-500` : 'border-slate-200 text-slate-300'
+                                        }`}>
+                                            {isOver ? 'Drop here' : 'No leads'}
+                                        </div>
+                                    )}
+                                    {visibleLeads.map((lead) => (
+                                        <LeadCard
+                                            key={lead.id}
+                                            lead={lead}
+                                            onDragStart={setDraggingId}
+                                        />
+                                    ))}
+                                </div>
 
-                                {/* Pagination controls */}
-                                {(hasMore || canCollapse) && (
-                                    <div className="flex gap-1.5 mt-1">
-                                        {hasMore && (
-                                            <button
-                                                onClick={() => showMore(status.key)}
-                                                className="flex-1 text-xs text-blue-600 hover:text-blue-800 bg-white border border-blue-200 rounded py-1.5 font-medium hover:bg-blue-50 transition-colors"
-                                            >
-                                                Show more ({columnLeads.length - visible})
-                                            </button>
-                                        )}
-                                        {canCollapse && (
-                                            <button
-                                                onClick={() => showLess(status.key)}
-                                                className="flex-1 text-xs text-slate-500 hover:text-slate-700 bg-white border border-slate-200 rounded py-1.5 font-medium hover:bg-slate-50 transition-colors"
-                                            >
-                                                Show less
-                                            </button>
-                                        )}
-                                    </div>
+                                {isTruncated && (
+                                    <p className="text-[11px] text-slate-400 text-center py-2 border-t border-slate-200">
+                                        showing {visibleLeads.length} of {columnLeads.length}
+                                    </p>
                                 )}
                             </div>
-                        </div>
-                    );
-                })}
+                        );
+                    })}
+                </div>
             </div>
+
+            {/* Board-level pagination control */}
+            {(overflowColumns.length > 0 || isExpanded) && (
+                <div className="flex items-center justify-center gap-3 mt-2 py-3 px-4 bg-slate-50 border border-slate-200 rounded-lg">
+                    {overflowColumns.length > 0 && (
+                        <button
+                            onClick={() => setVisibleLimit(prev => prev + KANBAN_PAGE_SIZE)}
+                            className="text-sm text-blue-600 hover:text-blue-800 bg-white border border-blue-200 rounded-md px-4 py-2 font-medium hover:bg-blue-50 transition-colors"
+                        >
+                            Show more ({overflowColumns.length} {overflowColumns.length === 1 ? 'column has' : 'columns have'} hidden cards)
+                        </button>
+                    )}
+                    {isExpanded && (
+                        <button
+                            onClick={() => setVisibleLimit(KANBAN_PAGE_SIZE)}
+                            className="text-sm text-slate-500 hover:text-slate-700 bg-white border border-slate-200 rounded-md px-4 py-2 font-medium hover:bg-slate-50 transition-colors"
+                        >
+                            Show less
+                        </button>
+                    )}
+                </div>
+            )}
         </div>
     );
 }
