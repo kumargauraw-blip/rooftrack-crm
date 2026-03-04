@@ -8,8 +8,8 @@ export function useStormRisk() {
             const { data } = await api.get('/weather/storm-risk');
             return data.data;
         },
-        refetchInterval: 15 * 60 * 1000, // 15 minutes
-        staleTime: 10 * 60 * 1000,
+        refetchInterval: 12 * 60 * 60 * 1000, // 12 hours (checks at login, manual refresh available)
+        staleTime: 6 * 60 * 60 * 1000,
         retry: 2,
     });
 }
@@ -21,8 +21,8 @@ export function useWeatherAlerts() {
             const { data } = await api.get('/weather/alerts');
             return data.data;
         },
-        refetchInterval: 15 * 60 * 1000,
-        staleTime: 10 * 60 * 1000,
+        refetchInterval: 12 * 60 * 60 * 1000, // 12 hours
+        staleTime: 6 * 60 * 60 * 1000,
         retry: 2,
     });
 }
@@ -34,8 +34,8 @@ export function useWeatherForecast() {
             const { data } = await api.get('/weather/forecast');
             return data.data;
         },
-        refetchInterval: 60 * 60 * 1000, // 1 hour
-        staleTime: 30 * 60 * 1000,
+        refetchInterval: 12 * 60 * 60 * 1000, // 12 hours
+        staleTime: 6 * 60 * 60 * 1000,
         retry: 2,
     });
 }

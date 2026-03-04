@@ -22,8 +22,8 @@ const cache = {
     alerts: { data: null, timestamp: 0 },
     forecast: { data: null, timestamp: 0 },
 };
-const ALERTS_TTL = 15 * 60 * 1000;   // 15 minutes
-const FORECAST_TTL = 60 * 60 * 1000; // 1 hour
+const ALERTS_TTL = 12 * 60 * 60 * 1000;   // 12 hours (refresh twice daily: 5 AM and 5 PM)
+const FORECAST_TTL = 12 * 60 * 60 * 1000; // 12 hours
 
 async function fetchNWS(url) {
     const res = await fetch(url, { headers: NWS_HEADERS });
