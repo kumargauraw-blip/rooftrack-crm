@@ -9,8 +9,8 @@ const RISK_BG = {
     none: 'bg-green-500/20 border-green-500/40',
     low: 'bg-yellow-500/20 border-yellow-500/40',
     moderate: 'bg-orange-500/20 border-orange-500/40',
-    high: 'bg-red-500/20 border-red-500/40',
-    extreme: 'bg-purple-500/20 border-purple-500/40',
+    high: 'bg-red-600 border-red-700 shadow-[0_0_12px_rgba(220,38,38,0.4)]',
+    extreme: 'bg-purple-700 border-purple-800 shadow-[0_0_16px_rgba(147,51,234,0.5)] animate-pulse',
 };
 
 const RISK_TEXT = {
@@ -25,8 +25,8 @@ const RISK_BADGE = {
     none: 'bg-green-500/30 text-green-900 border-green-500/50',
     low: 'bg-yellow-500/30 text-yellow-900 border-yellow-500/50',
     moderate: 'bg-orange-500/30 text-orange-900 border-orange-500/50',
-    high: 'bg-red-500/30 text-red-900 border-red-500/50',
-    extreme: 'bg-purple-500/30 text-purple-900 border-purple-500/50',
+    high: 'bg-red-600 text-white border-red-700 font-black uppercase tracking-wide',
+    extreme: 'bg-purple-700 text-white border-purple-800 font-black uppercase tracking-wide animate-pulse',
 };
 
 const ALERT_SEVERITY = {
@@ -163,10 +163,10 @@ export default function StormMap() {
                                 ${selectedDay === i ? 'ring-2 ring-white/30 scale-[1.02]' : 'hover:scale-[1.01]'}
                             `}
                         >
-                            <span className="text-[10px] font-medium text-gray-900">{d.dayName}</span>
-                            <span className="text-xl leading-none">{d.emoji}</span>
-                            <span className={`text-[10px] font-bold ${RISK_TEXT[d.riskKey]}`}>
-                                {d.riskLevel}
+                            <span className={`text-[10px] font-medium ${['high','extreme'].includes(d.riskKey) ? 'text-white' : 'text-gray-900'}`}>{d.dayName}</span>
+                            <span className={`leading-none ${['high','extreme'].includes(d.riskKey) ? 'text-2xl' : 'text-xl'}`}>{d.emoji}</span>
+                            <span className={`text-[10px] font-bold ${['high','extreme'].includes(d.riskKey) ? 'text-white uppercase tracking-wide' : RISK_TEXT[d.riskKey]}`}>
+                                {['high','extreme'].includes(d.riskKey) ? '⚠️ ' + d.riskLevel : d.riskLevel}
                             </span>
                             {d.temperature !== null && (
                                 <span className="text-[10px] font-medium text-gray-900">
@@ -307,13 +307,39 @@ export default function StormMap() {
                             </div>
                         )}
 
-                        {/* Storm campaign suggestion for moderate+ risk */}
-                        {['moderate', 'high', 'extreme'].includes(day.riskKey) && (
+                        {/* Storm campaign suggestion — escalating urgency */}
+                        {day.riskKey === 'moderate' && (
                             <div className="flex items-center gap-2 mt-1 p-2 rounded bg-orange-500/10 border border-orange-500/30">
                                 <CloudLightning className="h-4 w-4 text-red-800 shrink-0" />
                                 <p className="text-[11px] text-red-800 font-bold">
                                     Storm Alert: Consider launching a storm damage outreach campaign for {day.dayName.toLowerCase()}.
                                 </p>
+                            </div>
+                        )}
+                        {day.riskKey === 'high' && (
+                            <div className="flex items-center gap-2 mt-1 p-3 rounded-lg bg-red-600 border-2 border-red-700 shadow-lg shadow-red-500/30">
+                                <AlertTriangle className="h-5 w-5 text-white shrink-0" />
+                                <div>
+                                    <p className="text-sm text-white font-black uppercase tracking-wide">
+                                        🚨 SEVERE WEATHER — HAIL / TORNADO RISK
+                                    </p>
+                                    <p className="text-xs text-red-100 font-semibold mt-0.5">
+                                        High probability of roof damage. Launch storm damage campaigns NOW for {day.dayName}.
+                                    </p>
+                                </div>
+                            </div>
+                        )}
+                        {day.riskKey === 'extreme' && (
+                            <div className="flex items-center gap-2 mt-1 p-4 rounded-lg bg-purple-700 border-2 border-purple-800 shadow-xl shadow-purple-500/40 animate-pulse">
+                                <AlertTriangle className="h-6 w-6 text-white shrink-0" />
+                                <div>
+                                    <p className="text-base text-white font-black uppercase tracking-wider">
+                                        🌪️ EXTREME WEATHER EMERGENCY
+                                    </p>
+                                    <p className="text-sm text-purple-100 font-bold mt-0.5">
+                                        Tornado / large hail confirmed. Prepare emergency response campaigns. Major roof damage expected.
+                                    </p>
+                                </div>
                             </div>
                         )}
                     </div>
