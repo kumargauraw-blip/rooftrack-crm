@@ -2,8 +2,8 @@ const Database = require('better-sqlite3');
 const path = require('path');
 const fs = require('fs');
 
-// Resolve DATABASE_PATH relative to project root (app/), not CWD,
-// so the path is stable regardless of how the server is started.
+// Resolve DATABASE_PATH relative to project root, not CWD.
+// __dirname = server/db/, project root = 2 levels up
 const projectRoot = path.join(__dirname, '../..');
 const rawDbPath = process.env.DATABASE_PATH || './rooftrack.db';
 const dbPath = path.isAbsolute(rawDbPath) ? rawDbPath : path.resolve(projectRoot, rawDbPath);
@@ -22,7 +22,6 @@ function connect() {
 
 function ensureLeadColumns(db) {
     // Add columns introduced by Customer Lifecycle & Referral Tracking feature
-    // Skip if leads table doesn't exist yet (fresh DB — schema.sql will create it with all cols)
     const tables = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='leads'").all();
     if (tables.length === 0) return;
 
@@ -31,6 +30,14 @@ function ensureLeadColumns(db) {
         { name: 'referred_by', def: 'TEXT' },
         { name: 'referral_source', def: 'TEXT' },
         { name: 'payment_date', def: 'TEXT' },
+        { name: 'completed_at', def: 'TEXT' },
+        { name: 'contacted_at', def: 'TEXT' },
+        { name: 'scheduled_at', def: 'TEXT' },
+        { name: 'quoted_at', def: 'TEXT' },
+        { name: 'accepted_at', def: 'TEXT' },
+        { name: 'paid_at', def: 'TEXT' },
+        { name: 'review_received_at', def: 'TEXT' },
+        { name: 'lost_at', def: 'TEXT' },
     ];
     const existing = db.pragma('table_info(leads)').map(c => c.name);
     for (const col of newCols) {
@@ -39,22 +46,31 @@ function ensureLeadColumns(db) {
             console.log(`Added column leads.${col.name}`);
         }
     }
+    // Ensure indexes on lifecycle columns
+    try {
+        db.exec('CREATE INDEX IF NOT EXISTS idx_leads_referred_by ON leads(referred_by)');
+        db.exec('CREATE INDEX IF NOT EXISTS idx_leads_referral_source ON leads(referral_source)');
+    } catch (e) { /* indexes may already exist */ }
 }
 
 function initialize() {
     const db = connect();
 
-    // Migrate: add new columns to existing leads table BEFORE schema
-    // (schema.sql creates indexes on these columns, so they must exist first)
-    ensureLeadColumns(db);
-
+    // Run schema first (creates tables if they don't exist)
     const schema = fs.readFileSync(schemaPath, 'utf8');
     db.exec(schema);
 
-    // Backfill completed_at for imported customers that have NULL completed_at
-    db.exec(`UPDATE leads SET completed_at = '2025-12-31' WHERE status IN ('completed', 'paid', 'review_received') AND completed_at IS NULL`);
+    // Then ensure all columns exist (handles both fresh and existing DBs)
+    ensureLeadColumns(db);
 
-    // Check if we need to seed
+    // Backfill completed_at for imported customers
+    try {
+        db.exec(`UPDATE leads SET completed_at = '2025-12-31' WHERE status IN ('completed', 'paid', 'review_received') AND completed_at IS NULL`);
+    } catch (e) {
+        console.log('Backfill note:', e.message);
+    }
+
+    // Seed if empty
     const userCount = db.prepare('SELECT count(*) as count FROM users').get();
     if (userCount.count === 0 && fs.existsSync(seedPath)) {
         console.log('Seeding database...');

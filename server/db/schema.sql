@@ -186,5 +186,3 @@ CREATE INDEX IF NOT EXISTS idx_referral_campaigns_status ON referral_campaigns(s
 CREATE INDEX IF NOT EXISTS idx_referral_recipients_campaign ON referral_campaign_recipients(campaign_id);
 CREATE INDEX IF NOT EXISTS idx_referral_incentives_referrer ON referral_incentives(referrer_lead_id);
 CREATE INDEX IF NOT EXISTS idx_referral_incentives_referred ON referral_incentives(referred_lead_id);
-CREATE INDEX IF NOT EXISTS idx_leads_referred_by ON leads(referred_by);
-CREATE INDEX IF NOT EXISTS idx_leads_referral_source ON leads(referral_source);
