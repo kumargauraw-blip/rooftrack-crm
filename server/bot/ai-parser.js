@@ -52,7 +52,7 @@ async function parseMessage(text) {
 
     try {
         const response = await client.messages.create({
-            model: 'claude-haiku-4-5-20250315',
+            model: 'claude-3-haiku-20240307',
             max_tokens: 1024,
             system: SYSTEM_PROMPT,
             messages: [
