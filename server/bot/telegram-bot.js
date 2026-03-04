@@ -65,11 +65,11 @@ function startBot(db) {
         const chatId = msg.chat.id;
         const user = getOrCreateUser(msg);
 
-        let message = `👋 *Welcome to RoofTrack CRM Bot!*\n\n`;
+        let message = `👋 Welcome to RoofTrack CRM Bot!\n\n`;
         
         if (user.approved) {
             message += `You're registered and ready to go!\n\n`;
-            message += `*Commands:*\n`;
+            message += `Commands:\n`;
             message += `/help - Show all commands\n`;
             message += `/status - Pipeline summary\n`;
             message += `/leads - Recent leads\n`;
@@ -83,7 +83,7 @@ function startBot(db) {
             message += `Please contact the admin to get approved.`;
         }
 
-        await bot.sendMessage(chatId, message, { parse_mode: 'Markdown' });
+        await bot.sendMessage(chatId, message);
     });
 
     // /help command
@@ -95,7 +95,7 @@ function startBot(db) {
             return;
         }
 
-        const message = `📖 *RoofTrack Bot Commands*\n\n` +
+        const message = `📖 RoofTrack Bot Commands\n\n` +
             `*Slash Commands:*\n` +
             `/start - Register/welcome\n` +
             `/help - Show this help\n` +
@@ -110,7 +110,7 @@ function startBot(db) {
             `_"Remind me to call John tomorrow at 9am"_\n` +
             `_"What's the pipeline status?"_`;
 
-        await bot.sendMessage(chatId, message, { parse_mode: 'Markdown' });
+        await bot.sendMessage(chatId, message);
     });
 
     // /status command
@@ -152,16 +152,16 @@ function startBot(db) {
             paid: '💵', lost: '❌'
         };
 
-        let message = `📋 *Recent Leads (${leads.length}):*\n\n`;
+        let message = `📋 Recent Leads (${leads.length}):\n\n`;
         
         for (const lead of leads) {
             const emoji = STATUS_EMOJI[lead.status] || '📋';
-            message += `${emoji} *${lead.name}*\n`;
+            message += `${emoji} ${lead.name}\n`;
             if (lead.phone) message += `   📱 ${lead.phone}\n`;
             message += `   Status: ${lead.status}\n\n`;
         }
 
-        await bot.sendMessage(chatId, message, { parse_mode: 'Markdown' });
+        await bot.sendMessage(chatId, message);
     });
 
     // /find command

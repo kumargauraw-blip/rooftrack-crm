@@ -5,6 +5,12 @@ function uuid() {
     return crypto.randomUUID();
 }
 
+// Escape text for Telegram Markdown
+function esc(text) {
+    if (!text) return '';
+    return String(text).replace(/[_*[\]()~`>#+\-=|{}.!]/g, '\\$&');
+}
+
 // Format phone number consistently
 function formatPhone(phone) {
     if (!phone) return null;
@@ -89,17 +95,17 @@ async function handleNewLead(db, bot, chatId, parsed) {
 
     const priorityEmoji = PRIORITY_EMOJI[parsed.priority] || '🌡️';
     
-    let message = `✅ *Lead Created!*\n\n`;
-    message += `👤 *Name:* ${parsed.name}\n`;
-    if (parsed.phone) message += `📱 *Phone:* ${formatPhone(parsed.phone)}\n`;
-    if (parsed.email) message += `📧 *Email:* ${parsed.email}\n`;
-    if (parsed.address) message += `📍 *Address:* ${parsed.address}\n`;
-    if (parsed.city || parsed.state) message += `🏙️ *Location:* ${parsed.city || 'Irving'}, ${parsed.state || 'TX'}\n`;
-    message += `${priorityEmoji} *Priority:* ${parsed.priority || 'warm'}\n`;
-    if (parsed.source) message += `📣 *Source:* ${parsed.source}\n`;
-    if (parsed.notes || parsed.issue) message += `📝 *Notes:* ${parsed.notes || parsed.issue}\n`;
+    let message = `✅ Lead Created!\n\n`;
+    message += `👤 Name: ${parsed.name}\n`;
+    if (parsed.phone) message += `📱 Phone: ${formatPhone(parsed.phone)}\n`;
+    if (parsed.email) message += `📧 Email: ${parsed.email}\n`;
+    if (parsed.address) message += `📍 Address: ${parsed.address}\n`;
+    if (parsed.city || parsed.state) message += `🏙️ Location: ${parsed.city || 'Irving'}, ${parsed.state || 'TX'}\n`;
+    message += `${priorityEmoji} Priority: ${parsed.priority || 'warm'}\n`;
+    if (parsed.source) message += `📣 Source: ${parsed.source}\n`;
+    if (parsed.notes || parsed.issue) message += `📝 Notes: ${parsed.notes || parsed.issue}\n`;
 
-    await bot.sendMessage(chatId, message, { parse_mode: 'Markdown' });
+    await bot.sendMessage(chatId, message);
 }
 
 async function handleUpdateLead(db, bot, chatId, parsed) {
@@ -137,7 +143,7 @@ async function handleUpdateLead(db, bot, chatId, parsed) {
 
     logInteraction(db, lead.id, 'note', `Lead updated via Telegram: ${updates.length} field(s) changed`);
 
-    await bot.sendMessage(chatId, `✅ *Lead Updated!*\n\n👤 ${lead.name}\n📝 Updated ${updates.length - 1} field(s)`, { parse_mode: 'Markdown' });
+    await bot.sendMessage(chatId, `✅ Lead Updated!\n\n👤 ${lead.name}\n📝 Updated ${updates.length - 1} field(s)`);
 }
 
 async function handleSearchLead(db, bot, chatId, query) {
@@ -156,18 +162,18 @@ async function handleSearchLead(db, bot, chatId, query) {
         return;
     }
 
-    let message = `🔍 *Found ${leads.length} lead(s):*\n\n`;
+    let message = `🔍 Found ${leads.length} lead(s):\n\n`;
     
     for (const lead of leads) {
         const statusEmoji = STATUS_EMOJI[lead.status] || '📋';
         const priorityEmoji = PRIORITY_EMOJI[lead.priority] || '';
-        message += `${statusEmoji} *${lead.name}*${priorityEmoji}\n`;
+        message += `${statusEmoji} ${lead.name}${priorityEmoji}\n`;
         if (lead.phone) message += `   📱 ${lead.phone}\n`;
         if (lead.address) message += `   📍 ${lead.address}\n`;
         message += `   Status: ${lead.status}\n\n`;
     }
 
-    await bot.sendMessage(chatId, message, { parse_mode: 'Markdown' });
+    await bot.sendMessage(chatId, message);
 }
 
 async function handleAddAppointment(db, bot, chatId, parsed) {
@@ -206,14 +212,14 @@ async function handleAddAppointment(db, bot, chatId, parsed) {
 
     logInteraction(db, lead.id, 'appointment', `${parsed.appointment_type || 'Inspection'} scheduled for ${parsed.appointment_date}`);
 
-    let message = `📅 *Appointment Scheduled!*\n\n`;
-    message += `👤 *Customer:* ${lead.name}\n`;
-    message += `📆 *Date:* ${parsed.appointment_date}\n`;
-    if (parsed.appointment_time) message += `🕐 *Time:* ${parsed.appointment_time}\n`;
-    message += `📋 *Type:* ${parsed.appointment_type || 'inspection'}\n`;
-    if (lead.address) message += `📍 *Address:* ${lead.address}\n`;
+    let message = `📅 Appointment Scheduled!\n\n`;
+    message += `👤 Customer: ${lead.name}\n`;
+    message += `📆 Date: ${parsed.appointment_date}\n`;
+    if (parsed.appointment_time) message += `🕐 Time: ${parsed.appointment_time}\n`;
+    message += `📋 Type: ${parsed.appointment_type || 'inspection'}\n`;
+    if (lead.address) message += `📍 Address: ${lead.address}\n`;
 
-    await bot.sendMessage(chatId, message, { parse_mode: 'Markdown' });
+    await bot.sendMessage(chatId, message);
 }
 
 async function handleStatusCheck(db, bot, chatId) {
@@ -231,8 +237,8 @@ async function handleStatusCheck(db, bot, chatId) {
         total += row.count;
     }
 
-    let message = `📊 *Pipeline Status*\n\n`;
-    message += `📈 *Total Leads:* ${total}\n\n`;
+    let message = `📊 Pipeline Status\n\n`;
+    message += `📈 Total Leads: ${total}\n\n`;
 
     const statuses = ['new', 'contacted', 'scheduled', 'inspected', 'quoted', 'accepted', 'in_progress', 'completed', 'paid', 'lost'];
     
@@ -252,10 +258,10 @@ async function handleStatusCheck(db, bot, chatId) {
     `).get(today);
 
     if (todayAppts.count > 0) {
-        message += `\n📅 *Today's Appointments:* ${todayAppts.count}`;
+        message += `\n📅 Today's Appointments: ${todayAppts.count}`;
     }
 
-    await bot.sendMessage(chatId, message, { parse_mode: 'Markdown' });
+    await bot.sendMessage(chatId, message);
 }
 
 async function handleAddNote(db, bot, chatId, parsed) {
@@ -273,7 +279,7 @@ async function handleAddNote(db, bot, chatId, parsed) {
 
     logInteraction(db, lead.id, 'note', parsed.notes);
 
-    await bot.sendMessage(chatId, `📝 *Note Added!*\n\n👤 *Lead:* ${lead.name}\n📝 *Note:* ${parsed.notes}`, { parse_mode: 'Markdown' });
+    await bot.sendMessage(chatId, `📝 *Note Added!\n\n👤 Lead: ${lead.name}\n📝 Note: ${parsed.notes}`);
 }
 
 async function handleSetReminder(db, bot, chatId, telegramId, parsed) {
@@ -301,11 +307,11 @@ async function handleSetReminder(db, bot, chatId, telegramId, parsed) {
 
     stmt.run(reminderId, telegramId.toString(), leadId, remindAt, parsed.reminder_text);
 
-    let message = `⏰ *Reminder Set!*\n\n`;
-    message += `📆 *When:* ${parsed.reminder_date} at ${remindTime}\n`;
-    message += `📝 *Message:* ${parsed.reminder_text}\n`;
+    let message = `⏰ Reminder Set!\n\n`;
+    message += `📆 When: ${parsed.reminder_date} at ${remindTime}\n`;
+    message += `📝 Message: ${parsed.reminder_text}\n`;
 
-    await bot.sendMessage(chatId, message, { parse_mode: 'Markdown' });
+    await bot.sendMessage(chatId, message);
 }
 
 module.exports = {
