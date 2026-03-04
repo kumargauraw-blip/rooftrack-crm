@@ -113,6 +113,100 @@ function startBot(db) {
         await bot.sendMessage(chatId, message);
     });
 
+    // /approve command (admin only)
+    bot.onText(/\/approve(?:\s+(\d+))?/, async (msg, match) => {
+        const chatId = msg.chat.id;
+        
+        if (!isAdmin(msg.from.id)) {
+            await bot.sendMessage(chatId, '⚠️ Only admins can approve users.');
+            return;
+        }
+
+        const targetId = match[1];
+        if (!targetId) {
+            // Show pending users
+            const pending = db.prepare('SELECT telegram_id, telegram_username, display_name, created_at FROM bot_users WHERE approved = 0').all();
+            if (pending.length === 0) {
+                await bot.sendMessage(chatId, '✅ No pending users to approve.');
+                return;
+            }
+            let message = '👥 Pending Users:\n\n';
+            for (const u of pending) {
+                message += `🔹 ${u.display_name || 'Unknown'}`;
+                if (u.telegram_username) message += ` (@${u.telegram_username})`;
+                message += `\n   ID: ${u.telegram_id}\n   Joined: ${u.created_at}\n\n`;
+            }
+            message += 'To approve: /approve <telegram_id>';
+            await bot.sendMessage(chatId, message);
+            return;
+        }
+
+        const user = db.prepare('SELECT * FROM bot_users WHERE telegram_id = ?').get(targetId);
+        if (!user) {
+            await bot.sendMessage(chatId, `⚠️ No user found with Telegram ID: ${targetId}`);
+            return;
+        }
+        if (user.approved) {
+            await bot.sendMessage(chatId, `ℹ️ ${user.display_name} is already approved.`);
+            return;
+        }
+
+        db.prepare('UPDATE bot_users SET approved = 1 WHERE telegram_id = ?').run(targetId);
+        await bot.sendMessage(chatId, `✅ Approved: ${user.display_name} (@${user.telegram_username || 'no username'})\nThey can now use the bot.`);
+        
+        // Notify the approved user
+        try {
+            await bot.sendMessage(targetId, '🎉 Your account has been approved! You can now use RoofTrack CRM Bot.\n\nSend /help to see available commands.');
+        } catch (e) {
+            // User may not have started a chat with the bot yet
+        }
+    });
+
+    // /revoke command (admin only)
+    bot.onText(/\/revoke\s+(\d+)/, async (msg, match) => {
+        const chatId = msg.chat.id;
+        
+        if (!isAdmin(msg.from.id)) {
+            await bot.sendMessage(chatId, '⚠️ Only admins can revoke access.');
+            return;
+        }
+
+        const targetId = match[1];
+        const user = db.prepare('SELECT * FROM bot_users WHERE telegram_id = ?').get(targetId);
+        if (!user) {
+            await bot.sendMessage(chatId, `⚠️ No user found with Telegram ID: ${targetId}`);
+            return;
+        }
+
+        db.prepare('UPDATE bot_users SET approved = 0 WHERE telegram_id = ?').run(targetId);
+        await bot.sendMessage(chatId, `🚫 Revoked access for: ${user.display_name}`);
+    });
+
+    // /users command (admin only) - list all users
+    bot.onText(/\/users/, async (msg) => {
+        const chatId = msg.chat.id;
+        
+        if (!isAdmin(msg.from.id)) {
+            await bot.sendMessage(chatId, '⚠️ Only admins can view users.');
+            return;
+        }
+
+        const users = db.prepare('SELECT telegram_id, telegram_username, display_name, role, approved, created_at FROM bot_users ORDER BY created_at DESC').all();
+        if (users.length === 0) {
+            await bot.sendMessage(chatId, '📋 No registered users.');
+            return;
+        }
+
+        let message = '👥 All Users:\n\n';
+        for (const u of users) {
+            const status = u.approved ? '✅' : '⏳';
+            message += `${status} ${u.display_name || 'Unknown'}`;
+            if (u.telegram_username) message += ` (@${u.telegram_username})`;
+            message += ` [${u.role}]\n   ID: ${u.telegram_id}\n\n`;
+        }
+        await bot.sendMessage(chatId, message);
+    });
+
     // /status command
     bot.onText(/\/status/, async (msg) => {
         const chatId = msg.chat.id;
