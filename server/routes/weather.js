@@ -11,11 +11,21 @@ const NWS_HEADERS = {
 const DFW_POINT = '32.8998,-97.0403';
 const DFW_GRID = 'FWD/80,109';
 
-// DFW area forecast zones (counties within ~50 miles)
-const DFW_ZONES = [
-    'TXZ100', 'TXZ101', 'TXZ102', 'TXZ103', 'TXZ104',
-    'TXZ119', 'TXZ120', 'TXZ121', 'TXZ130', 'TXZ131',
-];
+// DFW area forecast zones mapped to counties, cities, and zip codes
+const DFW_ZONES = {
+    'TXZ100': { county: 'Tarrant', cities: ['Fort Worth', 'Arlington', 'Euless', 'Bedford', 'Hurst', 'Colleyville', 'Keller'], zips: ['76101-76140', '76001-76020', '76039-76040', '76021-76022', '76053', '76034', '76248'] },
+    'TXZ103': { county: 'Dallas', cities: ['Dallas', 'Irving', 'Grand Prairie', 'Cedar Hill', 'Lancaster'], zips: ['75201-75398', '75038-75063', '75050-75054', '75104', '75134-75146'] },
+    'TXZ104': { county: 'Collin', cities: ['Plano', 'McKinney', 'Allen', 'Frisco', 'Prosper'], zips: ['75023-75025', '75069-75071', '75002-75013', '75033-75036', '75078'] },
+    'TXZ102': { county: 'Denton', cities: ['Denton', 'Lewisville', 'Flower Mound', 'Little Elm', 'Corinth'], zips: ['76201-76210', '75067', '75022-75028', '75068', '76210'] },
+    'TXZ118': { county: 'Tarrant South', cities: ['Mansfield', 'Kennedale', 'Burleson'], zips: ['76063', '76060', '76028'] },
+    'TXZ119': { county: 'Johnson', cities: ['Burleson', 'Cleburne'], zips: ['76028', '76031-76033'] },
+    'TXZ091': { county: 'Parker', cities: ['Weatherford'], zips: ['76086-76088'] },
+    'TXZ116': { county: 'Kaufman', cities: ['Forney', 'Terrell'], zips: ['75126', '75160'] },
+    'TXZ117': { county: 'Rockwall', cities: ['Rockwall'], zips: ['75087', '75032'] },
+    'TXZ092': { county: 'Wise', cities: ['Decatur'], zips: ['76234'] },
+    'TXZ101': { county: 'Ellis', cities: ['Waxahachie', 'Midlothian'], zips: ['75165', '76065'] },
+};
+const DFW_ZONE_IDS = Object.keys(DFW_ZONES);
 
 // In-memory cache
 const cache = {
@@ -49,6 +59,7 @@ router.get('/alerts', authenticate, async (req, res) => {
         const raw = await fetchNWS(`${NWS_BASE}/alerts/active?point=${DFW_POINT}`);
         const alerts = (raw.features || []).map(f => {
             const p = f.properties;
+            const affectedAreas = mapAlertToAreas(p.geocode?.UGC || [], p.areaDesc);
             return {
                 id: p.id,
                 event: p.event,
@@ -62,6 +73,7 @@ router.get('/alerts', authenticate, async (req, res) => {
                 onset: p.onset,
                 expires: p.expires,
                 senderName: p.senderName,
+                affectedAreas,
             };
         });
 
@@ -129,10 +141,12 @@ router.get('/storm-risk', authenticate, async (req, res) => {
                 const raw = await fetchNWS(`${NWS_BASE}/alerts/active?point=${DFW_POINT}`);
                 alerts = (raw.features || []).map(f => {
                     const p = f.properties;
+                    const affectedAreas = mapAlertToAreas(p.geocode?.UGC || [], p.areaDesc);
                     return {
                         id: p.id, event: p.event, severity: p.severity,
                         headline: p.headline, description: p.description,
                         areaDesc: p.areaDesc, onset: p.onset, expires: p.expires,
+                        affectedAreas,
                     };
                 });
                 cache.alerts = { data: alerts, timestamp: Date.now() };
@@ -178,6 +192,37 @@ router.get('/storm-risk', authenticate, async (req, res) => {
         res.status(502).json({ success: false, error: 'Weather data unavailable' });
     }
 });
+
+// -------------------------------------------------------------------
+// Zone-to-area mapping helper
+// -------------------------------------------------------------------
+function mapAlertToAreas(ugcCodes, areaDesc) {
+    const matched = [];
+    // Try matching UGC codes first
+    for (const code of ugcCodes) {
+        if (DFW_ZONES[code]) {
+            matched.push({ zone: code, ...DFW_ZONES[code] });
+        }
+    }
+    // If no UGC match, try matching county names from areaDesc
+    if (matched.length === 0 && areaDesc) {
+        const desc = areaDesc.toLowerCase();
+        for (const [zone, info] of Object.entries(DFW_ZONES)) {
+            if (desc.includes(info.county.toLowerCase())) {
+                matched.push({ zone, ...info });
+            }
+        }
+    }
+    // If still no match, return all DFW areas (area-wide alert)
+    if (matched.length === 0) {
+        return Object.entries(DFW_ZONES).map(([zone, info]) => ({ zone, ...info }));
+    }
+    return matched;
+}
+
+function getAllDFWAreas() {
+    return Object.entries(DFW_ZONES).map(([zone, info]) => ({ zone, ...info }));
+}
 
 // -------------------------------------------------------------------
 // Risk calculation helpers
@@ -284,6 +329,25 @@ function buildDailyRisk(alerts, forecast) {
         const risk = RISK_LEVELS[riskKey];
         const shortForecast = dayForecast?.shortForecast || '';
 
+        // Determine affected areas
+        let affectedAreas = [];
+        if (dayAlerts.length > 0) {
+            // Collect unique areas from alert-specific zones
+            const seenZones = new Set();
+            for (const a of dayAlerts) {
+                for (const area of (a.affectedAreas || [])) {
+                    if (!seenZones.has(area.zone)) {
+                        seenZones.add(area.zone);
+                        affectedAreas.push(area);
+                    }
+                }
+            }
+        }
+        // For moderate+ risk with no alert-specific areas, show all DFW areas
+        if (affectedAreas.length === 0 && RISK_LEVELS[riskKey].level >= 2) {
+            affectedAreas = getAllDFWAreas();
+        }
+
         days.push({
             date: dateStr,
             dayName: i === 0 ? 'Today' : i === 1 ? 'Tomorrow' : dayName,
@@ -299,11 +363,13 @@ function buildDailyRisk(alerts, forecast) {
             windDirection: dayForecast?.windDirection || '',
             precipChance: dayForecast?.probabilityOfPrecipitation ?? null,
             detailedForecast: dayForecast?.detailedForecast || '',
+            affectedAreas,
             alerts: dayAlerts.map(a => ({
                 event: a.event,
                 severity: a.severity,
                 headline: a.headline,
                 description: a.description,
+                affectedAreas: a.affectedAreas || [],
             })),
         });
     }

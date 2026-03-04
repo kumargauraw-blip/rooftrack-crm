@@ -14,19 +14,19 @@ const RISK_BG = {
 };
 
 const RISK_TEXT = {
-    none: 'text-green-400',
-    low: 'text-yellow-400',
-    moderate: 'text-orange-400',
-    high: 'text-red-400',
-    extreme: 'text-purple-400',
+    none: 'text-green-900',
+    low: 'text-yellow-900',
+    moderate: 'text-orange-900',
+    high: 'text-red-900',
+    extreme: 'text-purple-900',
 };
 
 const RISK_BADGE = {
-    none: 'bg-green-500/30 text-green-300 border-green-500/50',
-    low: 'bg-yellow-500/30 text-yellow-300 border-yellow-500/50',
-    moderate: 'bg-orange-500/30 text-orange-300 border-orange-500/50',
-    high: 'bg-red-500/30 text-red-300 border-red-500/50',
-    extreme: 'bg-purple-500/30 text-purple-300 border-purple-500/50',
+    none: 'bg-green-500/30 text-green-900 border-green-500/50',
+    low: 'bg-yellow-500/30 text-yellow-900 border-yellow-500/50',
+    moderate: 'bg-orange-500/30 text-orange-900 border-orange-500/50',
+    high: 'bg-red-500/30 text-red-900 border-red-500/50',
+    extreme: 'bg-purple-500/30 text-purple-900 border-purple-500/50',
 };
 
 const ALERT_SEVERITY = {
@@ -163,13 +163,13 @@ export default function StormMap() {
                                 ${selectedDay === i ? 'ring-2 ring-white/30 scale-[1.02]' : 'hover:scale-[1.01]'}
                             `}
                         >
-                            <span className="text-[10px] font-medium text-muted-foreground">{d.dayName}</span>
+                            <span className="text-[10px] font-medium text-gray-900">{d.dayName}</span>
                             <span className="text-xl leading-none">{d.emoji}</span>
-                            <span className={`text-[10px] font-semibold ${RISK_TEXT[d.riskKey]}`}>
+                            <span className={`text-[10px] font-bold ${RISK_TEXT[d.riskKey]}`}>
                                 {d.riskLevel}
                             </span>
                             {d.temperature !== null && (
-                                <span className="text-[10px] text-muted-foreground">
+                                <span className="text-[10px] font-medium text-gray-900">
                                     {d.temperature}°
                                 </span>
                             )}
@@ -181,8 +181,8 @@ export default function StormMap() {
                 {allAlerts.length > 0 && (
                     <div className="space-y-1.5">
                         <div className="flex items-center gap-1.5">
-                            <AlertTriangle className="h-3.5 w-3.5 text-red-400" />
-                            <span className="text-xs font-semibold text-red-400">
+                            <AlertTriangle className="h-3.5 w-3.5 text-red-800" />
+                            <span className="text-xs font-bold text-red-800">
                                 {alertCount} Active Alert{alertCount !== 1 ? 's' : ''}
                             </span>
                         </div>
@@ -196,7 +196,7 @@ export default function StormMap() {
                                         <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold shrink-0 ${ALERT_SEVERITY[alert.severity] || ALERT_SEVERITY.Unknown}`}>
                                             {alert.severity}
                                         </span>
-                                        <span className="text-xs font-medium truncate">
+                                        <span className="text-xs font-bold text-red-900 truncate">
                                             {alert.event}
                                         </span>
                                     </div>
@@ -206,12 +206,22 @@ export default function StormMap() {
                                     }
                                 </button>
                                 {alert.headline && (
-                                    <p className="text-[11px] text-muted-foreground mt-1 leading-snug">{alert.headline}</p>
+                                    <p className="text-[11px] font-medium text-red-900 mt-1 leading-snug">{alert.headline}</p>
                                 )}
                                 {expandedAlerts[idx] && alert.description && (
-                                    <p className="text-[11px] text-muted-foreground mt-2 leading-snug whitespace-pre-line border-t border-red-500/20 pt-2">
+                                    <p className="text-[11px] text-gray-900 mt-2 leading-snug whitespace-pre-line border-t border-red-500/20 pt-2">
                                         {alert.description.slice(0, 500)}{alert.description.length > 500 ? '...' : ''}
                                     </p>
+                                )}
+                                {expandedAlerts[idx] && alert.affectedAreas?.length > 0 && (
+                                    <div className="mt-2 pt-2 border-t border-red-500/20">
+                                        <p className="text-[10px] font-bold text-red-800 mb-0.5">Affected DFW Areas:</p>
+                                        {alert.affectedAreas.map((area, j) => (
+                                            <p key={j} className="text-[10px] text-gray-900">
+                                                {area.county} ({area.cities.slice(0, 3).join(', ')}) — {area.zips.slice(0, 3).join(', ')}
+                                            </p>
+                                        ))}
+                                    </div>
                                 )}
                             </div>
                         ))}
@@ -231,9 +241,9 @@ export default function StormMap() {
                             </div>
                             {day.temperature !== null && (
                                 <div className="text-right">
-                                    <span className="text-lg font-bold">{day.temperature}°{day.temperatureUnit}</span>
+                                    <span className="text-lg font-bold text-gray-900">{day.temperature}°{day.temperatureUnit}</span>
                                     {day.temperatureNight !== null && (
-                                        <span className="text-xs text-muted-foreground ml-1">/ {day.temperatureNight}°</span>
+                                        <span className="text-xs text-gray-700 ml-1">/ {day.temperatureNight}°</span>
                                     )}
                                 </div>
                             )}
@@ -242,34 +252,67 @@ export default function StormMap() {
                         <div className="grid grid-cols-3 gap-2 text-xs">
                             {day.windSpeed && (
                                 <div>
-                                    <span className="text-muted-foreground">Wind</span>
-                                    <p className="font-medium">{day.windDirection} {day.windSpeed}</p>
+                                    <span className="text-gray-700 font-medium">Wind</span>
+                                    <p className="font-semibold text-gray-900">{day.windDirection} {day.windSpeed}</p>
                                 </div>
                             )}
                             {day.precipChance !== null && (
                                 <div>
-                                    <span className="text-muted-foreground">Precip</span>
-                                    <p className="font-medium">{day.precipChance}%</p>
+                                    <span className="text-gray-700 font-medium">Precip</span>
+                                    <p className="font-semibold text-gray-900">{day.precipChance}%</p>
                                 </div>
                             )}
                             <div>
-                                <span className="text-muted-foreground">Forecast</span>
-                                <p className="font-medium">{day.summary}</p>
+                                <span className="text-gray-700 font-medium">Forecast</span>
+                                <p className="font-semibold text-gray-900">{day.summary}</p>
                             </div>
                         </div>
 
                         {day.detailedForecast && (
-                            <p className="text-[11px] text-muted-foreground leading-snug">
+                            <p className="text-[11px] text-gray-800 leading-snug">
                                 {day.detailedForecast}
                             </p>
+                        )}
+
+                        {/* Affected Areas for moderate+ risk */}
+                        {['moderate', 'high', 'extreme'].includes(day.riskKey) && day.affectedAreas?.length > 0 && (
+                            <div className="mt-1 p-2 rounded bg-amber-500/10 border border-amber-500/30">
+                                <p className="text-[11px] font-bold text-gray-900 mb-1">Affected Areas:</p>
+                                <div className="space-y-0.5">
+                                    {day.affectedAreas.map((area, i) => (
+                                        <p key={i} className="text-[11px] text-gray-900">
+                                            <span className="font-semibold">{area.county}</span>
+                                            {' '}({area.cities.slice(0, 4).join(', ')})
+                                            {' — '}
+                                            <span className="text-gray-700">{area.zips.slice(0, 3).join(', ')}</span>
+                                        </p>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Alert-specific zone details */}
+                        {day.alerts?.some(a => a.affectedAreas?.length > 0) && (
+                            <div className="mt-1 space-y-1">
+                                {day.alerts.filter(a => a.affectedAreas?.length > 0).map((alert, i) => (
+                                    <div key={i} className="p-2 rounded bg-red-500/10 border border-red-500/30">
+                                        <p className="text-[11px] font-bold text-red-800 mb-0.5">{alert.event}:</p>
+                                        {alert.affectedAreas.map((area, j) => (
+                                            <p key={j} className="text-[10px] text-gray-900">
+                                                {area.county} ({area.cities.slice(0, 3).join(', ')}) — {area.zips.slice(0, 3).join(', ')}
+                                            </p>
+                                        ))}
+                                    </div>
+                                ))}
+                            </div>
                         )}
 
                         {/* Storm campaign suggestion for moderate+ risk */}
                         {['moderate', 'high', 'extreme'].includes(day.riskKey) && (
                             <div className="flex items-center gap-2 mt-1 p-2 rounded bg-orange-500/10 border border-orange-500/30">
-                                <CloudLightning className="h-4 w-4 text-orange-400 shrink-0" />
-                                <p className="text-[11px] text-orange-300">
-                                    <span className="font-semibold">Storm Alert:</span> Consider launching a storm damage outreach campaign for {day.dayName.toLowerCase()}.
+                                <CloudLightning className="h-4 w-4 text-red-800 shrink-0" />
+                                <p className="text-[11px] text-red-800 font-bold">
+                                    Storm Alert: Consider launching a storm damage outreach campaign for {day.dayName.toLowerCase()}.
                                 </p>
                             </div>
                         )}
