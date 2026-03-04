@@ -20,7 +20,8 @@ app.use(cors({
         // Allow requests with no origin (like mobile apps or curl requests)
         if (!origin) return callback(null, true);
         // Allow localhost, hosting platforms, and gauraw.com
-        if (origin.startsWith('http://localhost') || origin.includes('onrender.com') || origin.includes('railway.app') || origin.includes('gauraw.com')) {
+        const allowedOrigins = (process.env.CORS_ORIGINS || '').split(',').map(s => s.trim()).filter(Boolean);
+        if (origin.startsWith('http://localhost') || origin.includes('onrender.com') || origin.includes('railway.app') || origin.includes('gauraw.com') || origin.includes('honestroof.com') || origin.includes('vercel.app') || allowedOrigins.some(o => origin.includes(o))) {
             return callback(null, true);
         }
         callback(new Error('Not allowed by CORS'));
