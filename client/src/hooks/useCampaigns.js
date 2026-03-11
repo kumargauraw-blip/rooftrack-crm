@@ -93,3 +93,31 @@ export function useAddCampaignRecipients() {
         }
     });
 }
+
+export function useRecipientPreview(campaignId, filter, statusValue, cityValue) {
+    return useQuery({
+        queryKey: ['recipientPreview', campaignId, filter, statusValue, cityValue],
+        queryFn: async () => {
+            const params = new URLSearchParams({ filter });
+            if (filter === 'status') params.set('statusValue', statusValue);
+            if (filter === 'city') params.set('cityValue', cityValue);
+            const { data } = await api.get(`/campaigns/${campaignId}/recipients/preview?${params}`);
+            return data.data;
+        },
+        enabled: !!campaignId && (filter !== 'city' || cityValue.length > 0),
+    });
+}
+
+export function useCloneCampaign() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: async (campaignId) => {
+            const { data } = await api.post(`/campaigns/${campaignId}/clone`);
+            return data.data;
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['campaigns'] });
+        }
+    });
+}

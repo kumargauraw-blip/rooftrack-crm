@@ -7,14 +7,16 @@ import {
     useUpdateCampaign,
     useDeleteCampaign,
     useSendCampaign,
-    useAddCampaignRecipients
+    useAddCampaignRecipients,
+    useRecipientPreview,
+    useCloneCampaign
 } from '../hooks/useCampaigns';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
-    Plus, Trash2, ArrowLeft, Send, Mail, Eye, Users, AlertTriangle
+    Plus, Trash2, ArrowLeft, Send, Mail, Eye, Users, AlertTriangle, Copy
 } from 'lucide-react';
 
 const TEMPLATES = {
@@ -171,63 +173,117 @@ function AddRecipientsModal({ campaignId, onClose }) {
     const [filter, setFilter] = useState('all');
     const [statusValue, setStatusValue] = useState('completed');
     const [cityValue, setCityValue] = useState('');
+    const [addedResult, setAddedResult] = useState(null);
     const { mutate: addRecipients, isPending } = useAddCampaignRecipients();
+    const { data: preview, isLoading: previewLoading } = useRecipientPreview(campaignId, filter, statusValue, cityValue);
 
     const handleAdd = () => {
         addRecipients(
             { campaignId, filter, statusValue, cityValue },
-            { onSuccess: () => onClose() }
+            { onSuccess: (data) => setAddedResult(data) }
         );
     };
 
     return (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={onClose}>
-            <Card className="w-full max-w-md" onClick={e => e.stopPropagation()}>
-                <CardHeader>
+            <Card className="w-full max-w-md max-h-[85vh] flex flex-col" onClick={e => e.stopPropagation()}>
+                <CardHeader className="pb-4">
                     <CardTitle className="text-lg">Add Recipients</CardTitle>
+                    <p className="text-sm text-muted-foreground">Choose which leads to add to this campaign</p>
                 </CardHeader>
-                <CardContent className="space-y-4">
-                    <div>
-                        <label className="block text-sm font-medium mb-1">Filter</label>
-                        <select
-                            value={filter}
-                            onChange={e => setFilter(e.target.value)}
-                            className="w-full border rounded-md px-3 py-2 text-sm"
-                        >
-                            <option value="all">All customers with email</option>
-                            <option value="status">By lead status</option>
-                            <option value="city">By city</option>
-                        </select>
-                    </div>
-
-                    {filter === 'status' && (
-                        <div>
-                            <label className="block text-sm font-medium mb-1">Status</label>
-                            <select
-                                value={statusValue}
-                                onChange={e => setStatusValue(e.target.value)}
-                                className="w-full border rounded-md px-3 py-2 text-sm"
-                            >
-                                {PIPELINE_STATUSES.map(s => (
-                                    <option key={s} value={s}>{s.replace('_', ' ')}</option>
-                                ))}
-                            </select>
+                <CardContent className="overflow-y-auto space-y-5 pb-6">
+                    {addedResult ? (
+                        <div className="text-center py-4 space-y-3">
+                            <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-green-100">
+                                <Users className="h-6 w-6 text-green-600" />
+                            </div>
+                            <div>
+                                <p className="font-medium text-lg">{addedResult.added} recipient{addedResult.added !== 1 ? 's' : ''} added</p>
+                                <p className="text-sm text-muted-foreground">{addedResult.total} total recipients in campaign</p>
+                            </div>
+                            <Button onClick={onClose} className="mt-2">Done</Button>
                         </div>
-                    )}
+                    ) : (
+                        <>
+                            <div>
+                                <label className="block text-sm font-medium mb-2">Filter by</label>
+                                <div className="space-y-2">
+                                    <label className="flex items-center gap-3 p-3 border rounded-lg cursor-pointer hover:bg-accent transition-colors">
+                                        <input type="radio" name="filter" value="all" checked={filter === 'all'} onChange={e => setFilter(e.target.value)} className="accent-primary" />
+                                        <div>
+                                            <p className="text-sm font-medium">All customers</p>
+                                            <p className="text-xs text-muted-foreground">Every lead with an email address</p>
+                                        </div>
+                                    </label>
+                                    <label className="flex items-center gap-3 p-3 border rounded-lg cursor-pointer hover:bg-accent transition-colors">
+                                        <input type="radio" name="filter" value="status" checked={filter === 'status'} onChange={e => setFilter(e.target.value)} className="accent-primary" />
+                                        <div>
+                                            <p className="text-sm font-medium">By status</p>
+                                            <p className="text-xs text-muted-foreground">Filter by pipeline stage</p>
+                                        </div>
+                                    </label>
+                                    <label className="flex items-center gap-3 p-3 border rounded-lg cursor-pointer hover:bg-accent transition-colors">
+                                        <input type="radio" name="filter" value="city" checked={filter === 'city'} onChange={e => setFilter(e.target.value)} className="accent-primary" />
+                                        <div>
+                                            <p className="text-sm font-medium">By city</p>
+                                            <p className="text-xs text-muted-foreground">Target a specific area</p>
+                                        </div>
+                                    </label>
+                                </div>
+                            </div>
 
-                    {filter === 'city' && (
-                        <div>
-                            <label className="block text-sm font-medium mb-1">City</label>
-                            <Input value={cityValue} onChange={e => setCityValue(e.target.value)} placeholder="e.g. Irving" />
-                        </div>
-                    )}
+                            {filter === 'status' && (
+                                <div>
+                                    <label className="block text-sm font-medium mb-1">Status</label>
+                                    <select
+                                        value={statusValue}
+                                        onChange={e => setStatusValue(e.target.value)}
+                                        className="w-full border rounded-md px-3 py-2 text-sm"
+                                    >
+                                        {PIPELINE_STATUSES.map(s => (
+                                            <option key={s} value={s}>{s.replace('_', ' ')}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                            )}
 
-                    <div className="flex gap-2 justify-end">
-                        <Button variant="ghost" onClick={onClose}>Cancel</Button>
-                        <Button onClick={handleAdd} disabled={isPending}>
-                            {isPending ? 'Adding...' : 'Add Recipients'}
-                        </Button>
-                    </div>
+                            {filter === 'city' && (
+                                <div>
+                                    <label className="block text-sm font-medium mb-1">City</label>
+                                    <Input value={cityValue} onChange={e => setCityValue(e.target.value)} placeholder="e.g. Irving" />
+                                </div>
+                            )}
+
+                            {preview && !previewLoading && (
+                                <div className="rounded-lg bg-muted/50 border p-3 text-sm">
+                                    <div className="flex justify-between">
+                                        <span className="text-muted-foreground">Matching leads</span>
+                                        <span className="font-medium">{preview.matching}</span>
+                                    </div>
+                                    {preview.alreadyAdded > 0 && (
+                                        <div className="flex justify-between mt-1">
+                                            <span className="text-muted-foreground">Already in campaign</span>
+                                            <span className="font-medium">{preview.alreadyAdded}</span>
+                                        </div>
+                                    )}
+                                    <div className="flex justify-between mt-1 pt-1 border-t">
+                                        <span className="font-medium">New recipients to add</span>
+                                        <span className="font-bold">{preview.newRecipients}</span>
+                                    </div>
+                                </div>
+                            )}
+                            {previewLoading && (
+                                <p className="text-sm text-muted-foreground text-center py-2">Counting matches...</p>
+                            )}
+
+                            <div className="flex gap-2 justify-end pt-2">
+                                <Button variant="ghost" onClick={onClose}>Cancel</Button>
+                                <Button onClick={handleAdd} disabled={isPending || (preview && preview.newRecipients === 0)}>
+                                    {isPending ? 'Adding...' : 'Add Recipients'}
+                                </Button>
+                            </div>
+                        </>
+                    )}
                 </CardContent>
             </Card>
         </div>
@@ -288,6 +344,7 @@ function CampaignDetail({ id }) {
     const navigate = useNavigate();
     const { data: campaign, isLoading } = useCampaign(id);
     const { mutate: sendCampaign, isPending: isSending } = useSendCampaign();
+    const { mutate: cloneCampaign, isPending: isCloning } = useCloneCampaign();
     const [showRecipientModal, setShowRecipientModal] = useState(false);
     const [showPreview, setShowPreview] = useState(false);
     const [showSendConfirm, setShowSendConfirm] = useState(false);
@@ -301,6 +358,12 @@ function CampaignDetail({ id }) {
     const handleSend = () => {
         sendCampaign(id, {
             onSuccess: () => setShowSendConfirm(false)
+        });
+    };
+
+    const handleClone = () => {
+        cloneCampaign(id, {
+            onSuccess: (cloned) => navigate(`/campaigns/${cloned.id}`)
         });
     };
 
@@ -373,6 +436,9 @@ function CampaignDetail({ id }) {
                         <Send className="h-4 w-4 mr-2" /> Send Campaign
                     </Button>
                 )}
+                <Button variant="outline" onClick={handleClone} disabled={isCloning}>
+                    <Copy className="h-4 w-4 mr-2" /> {isCloning ? 'Cloning...' : 'Clone'}
+                </Button>
             </div>
 
             <Card>

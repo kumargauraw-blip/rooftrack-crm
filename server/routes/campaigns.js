@@ -309,4 +309,66 @@ router.post('/:id/send', authenticate, async (req, res) => {
     }
 });
 
+// GET /api/campaigns/:id/recipients/preview - preview recipient count for a filter
+router.get('/:id/recipients/preview', authenticate, (req, res) => {
+    try {
+        const db = getDb();
+        const { filter, statusValue, cityValue } = req.query;
+
+        let count;
+        if (filter === 'status' && statusValue) {
+            count = db.prepare(`
+                SELECT COUNT(*) as cnt FROM leads
+                WHERE status = ? AND email IS NOT NULL AND email != '' AND deleted_at IS NULL
+            `).get(statusValue).cnt;
+        } else if (filter === 'city' && cityValue) {
+            count = db.prepare(`
+                SELECT COUNT(*) as cnt FROM leads
+                WHERE city = ? AND email IS NOT NULL AND email != '' AND deleted_at IS NULL
+            `).get(cityValue).cnt;
+        } else {
+            count = db.prepare(`
+                SELECT COUNT(*) as cnt FROM leads
+                WHERE email IS NOT NULL AND email != '' AND deleted_at IS NULL
+            `).get().cnt;
+        }
+
+        // Subtract already-added recipients
+        const existing = db.prepare(
+            'SELECT COUNT(*) as cnt FROM campaign_recipients cr JOIN leads l ON cr.lead_id = l.id WHERE cr.campaign_id = ?'
+        ).get(req.params.id).cnt;
+
+        res.json({ success: true, data: { matching: count, alreadyAdded: existing, newRecipients: Math.max(0, count - existing) } });
+    } catch (error) {
+        console.error('[CAMPAIGN PREVIEW ERROR]', error);
+        res.status(500).json({ success: false, error: 'Failed to preview recipients', message: error.message });
+    }
+});
+
+// POST /api/campaigns/:id/clone - clone a campaign as a new draft
+router.post('/:id/clone', authenticate, (req, res) => {
+    try {
+        const db = getDb();
+        const campaign = db.prepare('SELECT * FROM campaigns WHERE id = ?').get(req.params.id);
+
+        if (!campaign) {
+            return res.status(404).json({ success: false, error: 'Campaign not found' });
+        }
+
+        const newId = crypto.randomUUID();
+        const newName = campaign.name + ' (Copy)';
+
+        db.prepare(`
+            INSERT INTO campaigns (id, name, type, subject, html_content, text_content, status, total_recipients, sent_count, failed_count)
+            VALUES (?, ?, ?, ?, ?, ?, 'draft', 0, 0, 0)
+        `).run(newId, newName, campaign.type, campaign.subject, campaign.html_content, campaign.text_content);
+
+        const cloned = db.prepare('SELECT * FROM campaigns WHERE id = ?').get(newId);
+        res.json({ success: true, data: cloned });
+    } catch (error) {
+        console.error('[CAMPAIGN CLONE ERROR]', error);
+        res.status(500).json({ success: false, error: 'Failed to clone campaign', message: error.message });
+    }
+});
+
 module.exports = router;
