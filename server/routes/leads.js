@@ -349,4 +349,78 @@ router.patch('/:id/notes', authenticate, (req, res) => {
     }
 });
 
+// PUT update lead fields
+router.put('/:id', authenticate, (req, res) => {
+    try {
+        const db = getDb();
+        const lead = db.prepare('SELECT * FROM leads WHERE id = ?').get(req.params.id);
+        if (!lead) return res.status(404).json({ success: false, error: 'Lead not found' });
+
+        const { name, phone, email, address, notes, priority, status, source_channel } = req.body;
+
+        // Build SET clause from provided fields only
+        const fields = [];
+        const values = [];
+        if (name !== undefined) { fields.push('name = ?'); values.push(name); }
+        if (phone !== undefined) { fields.push('phone = ?'); values.push(phone); }
+        if (email !== undefined) { fields.push('email = ?'); values.push(email); }
+        if (address !== undefined) { fields.push('address = ?'); values.push(address); }
+        if (notes !== undefined) { fields.push('notes = ?'); values.push(notes); }
+        if (priority !== undefined) { fields.push('priority = ?'); values.push(priority); }
+        if (source_channel !== undefined) { fields.push('source_channel = ?'); values.push(source_channel); }
+
+        // Handle status change with timestamp
+        if (status !== undefined && status !== lead.status) {
+            fields.push('status = ?');
+            values.push(status);
+            const dateCol = STATUS_DATE_COLUMNS[status];
+            if (dateCol) {
+                fields.push(`${dateCol} = datetime('now')`);
+            }
+        }
+
+        if (fields.length === 0) {
+            return res.status(400).json({ success: false, error: 'No fields to update' });
+        }
+
+        fields.push("updated_at = datetime('now')");
+        values.push(req.params.id);
+
+        db.prepare(`UPDATE leads SET ${fields.join(', ')} WHERE id = ?`).run(...values);
+
+        db.prepare(`
+            INSERT INTO interactions (id, lead_id, type, summary) VALUES (?, ?, 'system', 'Lead details updated')
+        `).run(crypto.randomUUID(), req.params.id);
+
+        // Smart note parsing if notes changed
+        if (notes !== undefined) {
+            parseNotesForDates(notes, req.params.id, db);
+        }
+
+        const updated = db.prepare('SELECT * FROM leads WHERE id = ?').get(req.params.id);
+        res.json({ success: true, data: updated });
+    } catch (error) {
+        console.error('[LEAD UPDATE ERROR]', error);
+        res.status(500).json({ success: false, error: 'Failed to update lead', message: error.message });
+    }
+});
+
+// DELETE lead and related data
+router.delete('/:id', authenticate, (req, res) => {
+    try {
+        const db = getDb();
+        const lead = db.prepare('SELECT * FROM leads WHERE id = ?').get(req.params.id);
+        if (!lead) return res.status(404).json({ success: false, error: 'Lead not found' });
+
+        db.prepare('DELETE FROM interactions WHERE lead_id = ?').run(req.params.id);
+        db.prepare('DELETE FROM appointments WHERE lead_id = ?').run(req.params.id);
+        db.prepare('DELETE FROM leads WHERE id = ?').run(req.params.id);
+
+        res.json({ success: true });
+    } catch (error) {
+        console.error('[LEAD DELETE ERROR]', error);
+        res.status(500).json({ success: false, error: 'Failed to delete lead', message: error.message });
+    }
+});
+
 module.exports = router;

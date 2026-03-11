@@ -55,6 +55,38 @@ export function useUpdateLeadNotes() {
     });
 }
 
+export function useUpdateLead() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: async ({ id, ...fields }) => {
+            const { data } = await api.put(`/leads/${id}`, fields);
+            return data.data;
+        },
+        onSuccess: (data, variables) => {
+            queryClient.invalidateQueries({ queryKey: ['lead', variables.id] });
+            queryClient.invalidateQueries({ queryKey: ['leads'] });
+            queryClient.invalidateQueries({ queryKey: ['dashboard-summary'] });
+            queryClient.invalidateQueries({ queryKey: ['appointments'] });
+        }
+    });
+}
+
+export function useDeleteLead() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: async (id) => {
+            await api.delete(`/leads/${id}`);
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['leads'] });
+            queryClient.invalidateQueries({ queryKey: ['dashboard-summary'] });
+            queryClient.invalidateQueries({ queryKey: ['appointments'] });
+        }
+    });
+}
+
 export function useCreateLead() {
     const queryClient = useQueryClient();
 
