@@ -37,6 +37,7 @@ db.initialize();
 // Routes
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/dashboard', require('./routes/dashboard'));
+app.use('/api/leads/public', require('./routes/public-leads'));
 app.use('/api/leads', require('./routes/leads'));
 app.use('/api/interactions', require('./routes/interactions'));
 app.use('/api/appointments', require('./routes/appointments'));
