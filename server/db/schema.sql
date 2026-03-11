@@ -186,3 +186,37 @@ CREATE INDEX IF NOT EXISTS idx_referral_campaigns_status ON referral_campaigns(s
 CREATE INDEX IF NOT EXISTS idx_referral_recipients_campaign ON referral_campaign_recipients(campaign_id);
 CREATE INDEX IF NOT EXISTS idx_referral_incentives_referrer ON referral_incentives(referrer_lead_id);
 CREATE INDEX IF NOT EXISTS idx_referral_incentives_referred ON referral_incentives(referred_lead_id);
+
+-- Email campaigns
+CREATE TABLE IF NOT EXISTS campaigns (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  type TEXT NOT NULL DEFAULT 'custom',
+  subject TEXT,
+  html_content TEXT,
+  text_content TEXT,
+  status TEXT DEFAULT 'draft',
+  total_recipients INTEGER DEFAULT 0,
+  sent_count INTEGER DEFAULT 0,
+  failed_count INTEGER DEFAULT 0,
+  created_at TEXT DEFAULT (datetime('now')),
+  sent_at TEXT
+);
+
+CREATE TABLE IF NOT EXISTS campaign_recipients (
+  id TEXT PRIMARY KEY,
+  campaign_id TEXT NOT NULL,
+  lead_id TEXT,
+  email TEXT NOT NULL,
+  name TEXT,
+  status TEXT DEFAULT 'pending',
+  sent_at TEXT,
+  opened_at TEXT,
+  error_message TEXT,
+  FOREIGN KEY (campaign_id) REFERENCES campaigns(id),
+  FOREIGN KEY (lead_id) REFERENCES leads(id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_campaigns_status ON campaigns(status);
+CREATE INDEX IF NOT EXISTS idx_campaign_recipients_campaign ON campaign_recipients(campaign_id);
+CREATE INDEX IF NOT EXISTS idx_campaign_recipients_lead ON campaign_recipients(lead_id);

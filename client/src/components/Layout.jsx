@@ -13,7 +13,8 @@ import {
     Hammer,
     Heart,
     Gift,
-    PieChart
+    PieChart,
+    Megaphone
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -35,6 +36,7 @@ export default function Layout() {
         { to: '/referrals', icon: Gift, label: 'Referrals' },
         { to: '/attribution', icon: PieChart, label: 'Attribution' },
         { to: '/calendar', icon: Calendar, label: 'Calendar' },
+        { to: '/campaigns', icon: Megaphone, label: 'Campaigns' },
         { to: '/reports', icon: BarChart3, label: 'Reports' },
     ];
 
