@@ -12,6 +12,7 @@ import Customers from './pages/Customers';
 import ReferralCampaigns from './pages/ReferralCampaigns';
 import RevenueAttribution from './pages/RevenueAttribution';
 import Campaigns from './pages/Campaigns';
+import StormIntel from './pages/StormIntel';
 
 const queryClient = new QueryClient();
 
@@ -46,6 +47,7 @@ export default function App() {
               <Route path="referrals" element={<ReferralCampaigns />} />
               <Route path="referrals/:id" element={<ReferralCampaigns />} />
               <Route path="attribution" element={<RevenueAttribution />} />
+              <Route path="storm-intel" element={<StormIntel />} />
               <Route path="campaigns" element={<Campaigns />} />
               <Route path="campaigns/:id" element={<Campaigns />} />
             </Route>

@@ -47,6 +47,7 @@ app.use('/api/customers', require('./routes/customers'));
 app.use('/api/referrals', require('./routes/referrals'));
 app.use('/api/weather', require('./routes/weather'));
 app.use('/api/campaigns', require('./routes/campaigns'));
+app.use('/api/storm-intel', require('./routes/storm-intel'));
 
 app.get('/api/health', (req, res) => {
     res.json({ status: 'ok', uptime: process.uptime() });

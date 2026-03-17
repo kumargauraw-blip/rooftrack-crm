@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import {
     useCampaigns,
     useCampaign,
@@ -80,10 +80,10 @@ const STATUS_COLORS = {
 const PIPELINE_STATUSES = ['new', 'contacted', 'quoted', 'accepted', 'scheduled', 'completed', 'paid', 'review_received'];
 
 // --- Create Campaign Form ---
-function CreateCampaignForm({ onClose, onCreated }) {
-    const [name, setName] = useState('');
-    const [type, setType] = useState('custom');
-    const [subject, setSubject] = useState('');
+function CreateCampaignForm({ onClose, onCreated, prefill }) {
+    const [name, setName] = useState(prefill?.name || '');
+    const [type, setType] = useState(prefill?.type || 'custom');
+    const [subject, setSubject] = useState(prefill?.subject || '');
     const [htmlContent, setHtmlContent] = useState('');
     const [textContent, setTextContent] = useState('');
     const { mutate: create, isPending } = useCreateCampaign();
@@ -129,6 +129,7 @@ function CreateCampaignForm({ onClose, onCreated }) {
                             <option value="referral">Referral Request</option>
                             <option value="review_request">Review Request</option>
                             <option value="promo">Promotional</option>
+                            <option value="storm_response">Storm Response</option>
                             <option value="custom">Custom</option>
                         </select>
                     </div>
@@ -494,8 +495,17 @@ function CampaignDetail({ id }) {
 function CampaignList() {
     const { data: campaigns, isLoading } = useCampaigns();
     const { mutate: deleteCampaign } = useDeleteCampaign();
-    const [showCreate, setShowCreate] = useState(false);
+    const location = useLocation();
+    const prefill = location.state?.prefill || null;
+    const [showCreate, setShowCreate] = useState(!!prefill);
     const navigate = useNavigate();
+
+    // Clear location state after consuming prefill
+    useEffect(() => {
+        if (prefill) {
+            window.history.replaceState({}, document.title);
+        }
+    }, [prefill]);
 
     if (isLoading) return <div className="text-center py-8">Loading...</div>;
 
@@ -515,6 +525,7 @@ function CampaignList() {
                 <CreateCampaignForm
                     onClose={() => setShowCreate(false)}
                     onCreated={(campaign) => campaign?.id && navigate(`/campaigns/${campaign.id}`)}
+                    prefill={prefill}
                 />
             )}
 

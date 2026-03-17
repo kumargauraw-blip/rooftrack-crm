@@ -14,7 +14,8 @@ import {
     Heart,
     Gift,
     PieChart,
-    Megaphone
+    Megaphone,
+    Zap
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -37,6 +38,7 @@ export default function Layout() {
         { to: '/attribution', icon: PieChart, label: 'Attribution' },
         { to: '/calendar', icon: Calendar, label: 'Calendar' },
         { to: '/campaigns', icon: Megaphone, label: 'Campaigns' },
+        { to: '/storm-intel', icon: Zap, label: 'Storm Intel' },
         { to: '/reports', icon: BarChart3, label: 'Reports' },
     ];
 

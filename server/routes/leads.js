@@ -412,6 +412,7 @@ router.delete('/:id', authenticate, (req, res) => {
         const lead = db.prepare('SELECT * FROM leads WHERE id = ?').get(req.params.id);
         if (!lead) return res.status(404).json({ success: false, error: 'Lead not found' });
 
+        db.prepare('DELETE FROM campaign_recipients WHERE lead_id = ?').run(req.params.id);
         db.prepare('DELETE FROM interactions WHERE lead_id = ?').run(req.params.id);
         db.prepare('DELETE FROM appointments WHERE lead_id = ?').run(req.params.id);
         db.prepare('DELETE FROM leads WHERE id = ?').run(req.params.id);
