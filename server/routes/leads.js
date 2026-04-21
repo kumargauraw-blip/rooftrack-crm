@@ -222,6 +222,88 @@ router.get('/', authenticate, (req, res) => {
     res.json({ success: true, data: leads });
 });
 
+// GET /api/leads/attribution-summary — aggregate counts of leads by
+// attribution channel for a date range. Powers the "leads by channel"
+// dashboard card. Must come BEFORE the /:id route so the literal path
+// isn't swallowed by the wildcard.
+// Query params:
+//   since  — ISO date/time; defaults to 30 days ago
+//   until  — ISO date/time; defaults to now
+router.get('/attribution-summary', authenticate, (req, res) => {
+    try {
+        const db = getDb();
+        const until = req.query.until || new Date().toISOString();
+        const since = req.query.since ||
+            new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+
+        const dateFilter = `created_at >= ? AND created_at <= ? AND deleted_at IS NULL`;
+
+        const total = db.prepare(
+            `SELECT COUNT(*) AS c FROM leads WHERE ${dateFilter}`
+        ).get(since, until).c;
+
+        const bySelfReported = db.prepare(`
+            SELECT COALESCE(NULLIF(heard_about, ''), 'not_provided') AS channel,
+                   COUNT(*) AS count
+            FROM leads
+            WHERE ${dateFilter}
+            GROUP BY channel
+            ORDER BY count DESC
+        `).all(since, until);
+
+        const byUtmSource = db.prepare(`
+            SELECT COALESCE(NULLIF(utm_source, ''), '(none)') AS utm_source,
+                   COUNT(*) AS count
+            FROM leads
+            WHERE ${dateFilter}
+            GROUP BY utm_source
+            ORDER BY count DESC
+        `).all(since, until);
+
+        const byUtmCampaign = db.prepare(`
+            SELECT utm_campaign, COUNT(*) AS count
+            FROM leads
+            WHERE ${dateFilter} AND utm_campaign IS NOT NULL AND utm_campaign != ''
+            GROUP BY utm_campaign
+            ORDER BY count DESC
+        `).all(since, until);
+
+        const adClicks = db.prepare(`
+            SELECT
+              SUM(CASE WHEN gclid = 1 THEN 1 ELSE 0 END)  AS google_ads,
+              SUM(CASE WHEN fbclid = 1 THEN 1 ELSE 0 END) AS meta_ads,
+              SUM(CASE WHEN msclkid = 1 THEN 1 ELSE 0 END) AS bing_ads
+            FROM leads
+            WHERE ${dateFilter}
+        `).get(since, until);
+
+        const repeatSubmitters = db.prepare(
+            `SELECT COUNT(*) AS c FROM leads WHERE ${dateFilter} AND is_repeat = 1`
+        ).get(since, until).c;
+
+        res.json({
+            success: true,
+            data: {
+                since,
+                until,
+                total,
+                by_self_reported: bySelfReported,
+                by_utm_source: byUtmSource,
+                by_utm_campaign: byUtmCampaign,
+                ad_clicks: {
+                    google_ads: adClicks.google_ads || 0,
+                    meta_ads: adClicks.meta_ads || 0,
+                    bing_ads: adClicks.bing_ads || 0,
+                },
+                repeat_submitters: repeatSubmitters,
+            },
+        });
+    } catch (error) {
+        console.error('[ATTRIBUTION SUMMARY ERROR]', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
 // GET single lead details
 router.get('/:id', authenticate, (req, res) => {
     const db = getDb();

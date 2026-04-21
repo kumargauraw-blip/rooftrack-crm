@@ -11,6 +11,7 @@ import {
     useRecipientPreview,
     useCloneCampaign
 } from '../hooks/useCampaigns';
+import AutoresponderPanel from '../components/AutoresponderPanel';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -509,8 +510,14 @@ function CampaignList() {
 
     if (isLoading) return <div className="text-center py-8">Loading...</div>;
 
+    // Autoresponder campaigns render in their own dedicated panel; hide them
+    // from the one-shot manual-campaign list below to avoid duplication.
+    const manualCampaigns = (campaigns || []).filter((c) => !c.trigger_event);
+
     return (
         <div className="space-y-6">
+            <AutoresponderPanel />
+
             <div className="flex items-center justify-between">
                 <div>
                     <h1 className="text-2xl font-bold tracking-tight">Campaigns</h1>
@@ -529,7 +536,7 @@ function CampaignList() {
                 />
             )}
 
-            {!campaigns?.length ? (
+            {!manualCampaigns?.length ? (
                 <Card>
                     <CardContent className="py-12 text-center text-muted-foreground">
                         <Mail className="h-12 w-12 mx-auto mb-3 opacity-50" />
@@ -538,7 +545,7 @@ function CampaignList() {
                 </Card>
             ) : (
                 <div className="space-y-3">
-                    {campaigns.map(campaign => (
+                    {manualCampaigns.map(campaign => (
                         <Card
                             key={campaign.id}
                             className="cursor-pointer hover:shadow-md transition-shadow"

@@ -121,3 +121,67 @@ export function useCloneCampaign() {
         }
     });
 }
+
+// ───────── Autoresponder hooks ─────────
+
+/** List every autoresponder campaign (any campaign with a trigger_event set). */
+export function useAutoresponders() {
+    return useQuery({
+        queryKey: ['autoresponders'],
+        queryFn: async () => {
+            const { data } = await api.get('/campaigns/autoresponders/list');
+            return data.data;
+        },
+    });
+}
+
+/** Fetch the currently-active autoresponder for a given trigger. */
+export function useActiveAutoresponder(trigger) {
+    return useQuery({
+        queryKey: ['autoresponder-active', trigger],
+        queryFn: async () => {
+            const { data } = await api.get(`/campaigns/autoresponders/active/${trigger}`);
+            return data.data;
+        },
+        enabled: !!trigger,
+    });
+}
+
+export function useActivateAutoresponder() {
+    const queryClient = useQueryClient();
+    return useMutation({
+        mutationFn: async (campaignId) => {
+            const { data } = await api.post(`/campaigns/${campaignId}/activate`);
+            return data.data;
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['campaigns'] });
+            queryClient.invalidateQueries({ queryKey: ['autoresponders'] });
+            queryClient.invalidateQueries({ queryKey: ['autoresponder-active'] });
+        },
+    });
+}
+
+export function useDeactivateAutoresponder() {
+    const queryClient = useQueryClient();
+    return useMutation({
+        mutationFn: async (campaignId) => {
+            const { data } = await api.post(`/campaigns/${campaignId}/deactivate`);
+            return data.data;
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['campaigns'] });
+            queryClient.invalidateQueries({ queryKey: ['autoresponders'] });
+            queryClient.invalidateQueries({ queryKey: ['autoresponder-active'] });
+        },
+    });
+}
+
+export function useTestSendCampaign() {
+    return useMutation({
+        mutationFn: async ({ campaignId, to_email, to_name }) => {
+            const { data } = await api.post(`/campaigns/${campaignId}/test-send`, { to_email, to_name });
+            return data.data;
+        },
+    });
+}
