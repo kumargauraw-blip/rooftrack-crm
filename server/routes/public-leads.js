@@ -143,18 +143,31 @@ async function fireNewLeadAutoresponder(db, lead) {
     }
 }
 
-// POST /api/leads/public - public lead submission (no auth)
+// POST /api/leads/public - public lead submission (no auth).
+// Server-to-server callers (e.g. the honestroof.com Next.js site) can
+// include an `X-Internal-Key` header matching CRM_INTERNAL_API_KEY to
+// bypass the honeypot + rate limit — those protections are meant for
+// raw browser traffic, not a trusted upstream that already did its own
+// spam filtering.
 router.post('/', (req, res) => {
     try {
-        // Honeypot check: if "website" field is filled, it's a bot
-        if (req.body.website) {
-            return res.json({ success: true, message: 'Thank you! We will contact you shortly.' });
-        }
+        // Trusted internal caller detection
+        const providedKey = req.headers['x-internal-key'];
+        const expectedKey = process.env.CRM_INTERNAL_API_KEY;
+        const isTrustedInternal =
+            expectedKey && providedKey && providedKey === expectedKey;
 
-        // Rate limiting
-        const ip = req.ip || req.connection.remoteAddress;
-        if (isRateLimited(ip)) {
-            return res.status(429).json({ success: false, error: 'Too many submissions. Please try again later.' });
+        if (!isTrustedInternal) {
+            // Honeypot check: if "website" field is filled, it's a bot
+            if (req.body.website) {
+                return res.json({ success: true, message: 'Thank you! We will contact you shortly.' });
+            }
+
+            // Rate limiting — only applied to direct public traffic
+            const ip = req.ip || req.connection.remoteAddress;
+            if (isRateLimited(ip)) {
+                return res.status(429).json({ success: false, error: 'Too many submissions. Please try again later.' });
+            }
         }
 
         const { name, phone, email, address, notes, source, attribution } = req.body;
