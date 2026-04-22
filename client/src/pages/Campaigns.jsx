@@ -351,8 +351,20 @@ function CampaignDetail({ id }) {
     const [showPreview, setShowPreview] = useState(false);
     const [showSendConfirm, setShowSendConfirm] = useState(false);
 
+    // Autoresponders aren't "one-shot campaigns" — they fire per-lead. The
+    // generic recipients/send UI below makes no sense for them. Bounce to
+    // /campaigns with an editor-open query param so the AutoresponderPanel
+    // picks them up and opens the editor directly.
+    useEffect(() => {
+        if (campaign?.trigger_event) {
+            navigate(`/campaigns?editAutoresponder=${campaign.id}`, { replace: true });
+        }
+    }, [campaign, navigate]);
+
     if (isLoading) return <div className="text-center py-8">Loading...</div>;
     if (!campaign) return <div className="text-center py-8 text-muted-foreground">Campaign not found</div>;
+    // Don't flash the wrong UI while the redirect runs.
+    if (campaign.trigger_event) return <div className="text-center py-8 text-muted-foreground">Opening autoresponder editor...</div>;
 
     const isDraft = campaign.status === 'draft';
     const recipientCount = campaign.recipients?.length || 0;

@@ -31,7 +31,11 @@ export function useCreateCampaign() {
             return data.data;
         },
         onSuccess: () => {
+            // Invalidate both lists since we don't know at this layer whether
+            // the new campaign is a manual one or an autoresponder.
             queryClient.invalidateQueries({ queryKey: ['campaigns'] });
+            queryClient.invalidateQueries({ queryKey: ['autoresponders'] });
+            queryClient.invalidateQueries({ queryKey: ['autoresponder-active'] });
         }
     });
 }
@@ -47,6 +51,8 @@ export function useUpdateCampaign() {
         onSuccess: (data, variables) => {
             queryClient.invalidateQueries({ queryKey: ['campaign', variables.id] });
             queryClient.invalidateQueries({ queryKey: ['campaigns'] });
+            queryClient.invalidateQueries({ queryKey: ['autoresponders'] });
+            queryClient.invalidateQueries({ queryKey: ['autoresponder-active'] });
         }
     });
 }

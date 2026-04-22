@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import {
     useAutoresponders,
     useActiveAutoresponder,
@@ -12,7 +13,7 @@ import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Zap, Mail, CheckCircle2, CircleOff, Send, Plus } from 'lucide-react';
+import { Zap, Mail, CheckCircle2, CircleOff, Send, Plus, Pencil } from 'lucide-react';
 
 // ─── localStorage-backed state ─────────────────────────────────────────────
 // Keeps in-progress autoresponder edits alive across tab switches, route
@@ -93,6 +94,20 @@ export default function AutoresponderPanel() {
     // Persisted to localStorage so tab switches don't drop the editor.
     // Shape: null | { mode: 'new' } | { mode: 'edit', id: string }
     const [editingState, setEditingState] = useLocalStorageState(EDITING_STATE_KEY, null);
+
+    // `?editAutoresponder=<id>` in the URL → auto-open the editor for that
+    // campaign and strip the param. Used by the CampaignDetail redirect when
+    // someone lands on /campaigns/:id for an autoresponder.
+    const [searchParams, setSearchParams] = useSearchParams();
+    useEffect(() => {
+        const editId = searchParams.get('editAutoresponder');
+        if (editId) {
+            setEditingState({ mode: 'edit', id: editId });
+            const next = new URLSearchParams(searchParams);
+            next.delete('editAutoresponder');
+            setSearchParams(next, { replace: true });
+        }
+    }, [searchParams, setSearchParams, setEditingState]);
 
     const newLeadAutoresponders = autoresponders.filter((a) => a.trigger_event === 'new_lead');
 
@@ -215,7 +230,7 @@ function ActiveAutoresponderCard({ campaign, onEdit, hasDraft }) {
         <div className="rounded-lg border border-emerald-200 bg-emerald-50/50 p-4 space-y-3">
             <div className="flex items-start justify-between gap-3">
                 <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1">
+                    <div className="flex items-center gap-2 mb-1 flex-wrap">
                         <Badge className="bg-emerald-500 text-white">
                             <CheckCircle2 className="h-3 w-3 mr-1" /> Active
                         </Badge>
@@ -226,6 +241,10 @@ function ActiveAutoresponderCard({ campaign, onEdit, hasDraft }) {
                             </Badge>
                         )}
                     </div>
+                    <p className="text-xs text-emerald-700 mb-1.5 flex items-center gap-1">
+                        <Zap className="h-3 w-3" />
+                        <strong>Fires automatically</strong> on every new website lead with an email address
+                    </p>
                     <p className="text-sm text-muted-foreground truncate">
                         <Mail className="h-3 w-3 inline mr-1" />
                         Subject: <span className="text-foreground">{campaign.subject || '(no subject)'}</span>
@@ -233,7 +252,8 @@ function ActiveAutoresponderCard({ campaign, onEdit, hasDraft }) {
                 </div>
             </div>
             <div className="flex flex-wrap gap-2 pt-1">
-                <Button size="sm" variant="outline" onClick={onEdit}>
+                <Button size="sm" onClick={onEdit}>
+                    <Pencil className="h-3.5 w-3.5 mr-1" />
                     {hasDraft ? 'Resume Draft' : 'Edit Email'}
                 </Button>
                 <Button
@@ -258,29 +278,45 @@ function ActiveAutoresponderCard({ campaign, onEdit, hasDraft }) {
 function InactiveAutoresponderRow({ campaign, onEdit, hasDraft }) {
     const { mutate: activate, isPending: activating } = useActivateAutoresponder();
     return (
-        <div className="flex items-center justify-between gap-2 rounded border p-3 text-sm">
-            <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2">
-                    <p className="font-medium truncate">{campaign.name}</p>
-                    {hasDraft && (
-                        <Badge variant="outline" className="text-amber-700 border-amber-300 bg-amber-50 text-[10px]">
-                            Unsaved draft
-                        </Badge>
-                    )}
+        <div
+            className="rounded border p-3 text-sm hover:border-primary/40 hover:bg-accent/30 transition-colors cursor-pointer"
+            onClick={onEdit}
+            role="button"
+            tabIndex={0}
+            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') onEdit(); }}
+        >
+            <div className="flex items-center justify-between gap-2">
+                <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                        <Badge variant="outline" className="text-[10px]">Draft</Badge>
+                        <p className="font-medium truncate">{campaign.name}</p>
+                        {hasDraft && (
+                            <Badge variant="outline" className="text-amber-700 border-amber-300 bg-amber-50 text-[10px]">
+                                Unsaved changes
+                            </Badge>
+                        )}
+                    </div>
+                    <p className="text-[11px] text-muted-foreground mt-0.5 flex items-center gap-1">
+                        <Zap className="h-3 w-3" />
+                        Would fire on every new website lead with an email — not yet active
+                    </p>
+                    <p className="text-xs text-muted-foreground truncate mt-1">
+                        Subject: {campaign.subject || '(no subject)'}
+                    </p>
                 </div>
-                <p className="text-xs text-muted-foreground truncate">{campaign.subject || '(no subject)'}</p>
-            </div>
-            <div className="flex gap-1 shrink-0">
-                <Button size="sm" variant="ghost" onClick={onEdit}>
-                    {hasDraft ? 'Resume' : 'Edit'}
-                </Button>
-                <Button
-                    size="sm"
-                    onClick={() => activate(campaign.id)}
-                    disabled={activating}
-                >
-                    {activating ? 'Activating...' : 'Activate'}
-                </Button>
+                <div className="flex gap-1 shrink-0" onClick={(e) => e.stopPropagation()}>
+                    <Button size="sm" variant="outline" onClick={onEdit}>
+                        <Pencil className="h-3.5 w-3.5 mr-1" />
+                        {hasDraft ? 'Resume' : 'Edit'}
+                    </Button>
+                    <Button
+                        size="sm"
+                        onClick={() => activate(campaign.id)}
+                        disabled={activating}
+                    >
+                        {activating ? 'Activating...' : 'Activate'}
+                    </Button>
+                </div>
             </div>
         </div>
     );
@@ -412,6 +448,18 @@ function AutoresponderEditor({ campaign, onClose }) {
                     )}
                 </div>
                 <Button size="sm" variant="ghost" onClick={handleCancel}>Cancel</Button>
+            </div>
+
+            {/* Trigger explainer — answers "when will this run?" up front */}
+            <div className="rounded-md bg-primary/5 border border-primary/20 p-3 text-sm flex items-start gap-2">
+                <Zap className="h-4 w-4 text-primary shrink-0 mt-0.5" />
+                <div>
+                    <p className="font-medium">Trigger: every new lead</p>
+                    <p className="text-muted-foreground text-[13px]">
+                        Sends automatically to any lead that submits a honestroof.com form with an email address.
+                        Dennis is BCC&apos;d on every send. Only fires when this autoresponder is <strong>Active</strong>.
+                    </p>
+                </div>
             </div>
 
             <div className="grid sm:grid-cols-2 gap-3">
