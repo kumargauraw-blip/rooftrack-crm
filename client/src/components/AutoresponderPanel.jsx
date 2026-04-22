@@ -14,6 +14,46 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Zap, Mail, CheckCircle2, CircleOff, Send, Plus } from 'lucide-react';
 
+// ─── localStorage-backed state ─────────────────────────────────────────────
+// Keeps in-progress autoresponder edits alive across tab switches, route
+// navigations, and even full page reloads. Pass `null` to clear.
+// Keys are namespaced so we can find and clean up our own entries.
+const EDITING_STATE_KEY = 'hr_crm_autoresponder_editing';
+const draftKey = (id) => `hr_crm_autoresponder_draft_${id || 'new'}`;
+
+/** Returns true iff there's a stored draft for the given campaign id (or 'new'). */
+function hasStoredDraft(id) {
+    if (typeof window === 'undefined') return false;
+    try {
+        return window.localStorage.getItem(draftKey(id)) !== null;
+    } catch {
+        return false;
+    }
+}
+
+function useLocalStorageState(key, initialValue) {
+    const [value, setValue] = useState(() => {
+        if (typeof window === 'undefined') return initialValue;
+        try {
+            const raw = window.localStorage.getItem(key);
+            if (raw !== null) return JSON.parse(raw);
+        } catch { /* corrupted entry — ignore and fall back to initial */ }
+        return initialValue;
+    });
+
+    useEffect(() => {
+        try {
+            if (value === null || value === undefined) {
+                window.localStorage.removeItem(key);
+            } else {
+                window.localStorage.setItem(key, JSON.stringify(value));
+            }
+        } catch { /* quota exceeded / private mode — safe to ignore */ }
+    }, [key, value]);
+
+    return [value, setValue];
+}
+
 const NEW_LEAD_DEFAULT = {
     subject: 'Thanks for reaching out — HonestRoof will call you shortly',
     html_content: `<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
@@ -50,8 +90,39 @@ export default function AutoresponderPanel() {
     const { data: autoresponders = [], isLoading } = useAutoresponders();
     const { data: active } = useActiveAutoresponder('new_lead');
 
-    const [editing, setEditing] = useState(null); // holds the campaign being edited, or 'new'
+    // Persisted to localStorage so tab switches don't drop the editor.
+    // Shape: null | { mode: 'new' } | { mode: 'edit', id: string }
+    const [editingState, setEditingState] = useLocalStorageState(EDITING_STATE_KEY, null);
+
     const newLeadAutoresponders = autoresponders.filter((a) => a.trigger_event === 'new_lead');
+
+    // Resolve whichever campaign we're editing (if any). Uses the fresh list
+    // from the server so we always pass the editor up-to-date DB values as its
+    // baseline — the user's unsaved typing is kept in the draft-key store.
+    const editingCampaign =
+        editingState?.mode === 'edit' && editingState.id
+            ? autoresponders.find((a) => a.id === editingState.id) || null
+            : null;
+
+    // If another admin (or another tab) deleted the campaign we were editing,
+    // drop the stale editing reference. Done in an effect so we don't set
+    // state during render.
+    useEffect(() => {
+        if (
+            editingState?.mode === 'edit' &&
+            editingState.id &&
+            !isLoading &&
+            !editingCampaign
+        ) {
+            setEditingState(null);
+        }
+    }, [editingState, isLoading, editingCampaign, setEditingState]);
+
+    const isEditorOpen = editingState?.mode === 'new' || !!editingCampaign;
+
+    const startNew = () => setEditingState({ mode: 'new' });
+    const startEdit = (campaign) => setEditingState({ mode: 'edit', id: campaign.id });
+    const closeEditor = () => setEditingState(null);
 
     if (isLoading) {
         return (
@@ -80,27 +151,35 @@ export default function AutoresponderPanel() {
                 </div>
             </CardHeader>
             <CardContent className="space-y-3">
-                {editing ? (
+                {isEditorOpen ? (
                     <AutoresponderEditor
-                        campaign={editing === 'new' ? null : editing}
-                        onClose={() => setEditing(null)}
+                        campaign={editingCampaign}
+                        onClose={closeEditor}
                     />
                 ) : (
                     <>
                         {active ? (
                             <ActiveAutoresponderCard
                                 campaign={active}
-                                onEdit={() => setEditing(active)}
+                                onEdit={() => startEdit(active)}
+                                hasDraft={hasStoredDraft(active.id)}
                             />
                         ) : (
                             <div className="rounded-lg border border-dashed p-5 text-center space-y-3">
                                 <p className="text-sm text-muted-foreground">
                                     No active autoresponder. Create one and new leads will get an immediate acknowledgement email.
                                 </p>
-                                <Button size="sm" onClick={() => setEditing('new')}>
+                                <Button size="sm" onClick={startNew}>
                                     <Plus className="h-4 w-4 mr-1" />
-                                    Create New Lead Autoresponder
+                                    {hasStoredDraft(null)
+                                        ? 'Resume Draft'
+                                        : 'Create New Lead Autoresponder'}
                                 </Button>
+                                {hasStoredDraft(null) && (
+                                    <p className="text-[11px] text-muted-foreground">
+                                        You have an unsaved draft — your progress will be restored.
+                                    </p>
+                                )}
                             </div>
                         )}
 
@@ -115,7 +194,8 @@ export default function AutoresponderPanel() {
                                             <InactiveAutoresponderRow
                                                 key={c.id}
                                                 campaign={c}
-                                                onEdit={() => setEditing(c)}
+                                                onEdit={() => startEdit(c)}
+                                                hasDraft={hasStoredDraft(c.id)}
                                             />
                                         ))}
                                 </div>
@@ -128,7 +208,7 @@ export default function AutoresponderPanel() {
     );
 }
 
-function ActiveAutoresponderCard({ campaign, onEdit }) {
+function ActiveAutoresponderCard({ campaign, onEdit, hasDraft }) {
     const { mutate: deactivate, isPending: deactivating } = useDeactivateAutoresponder();
 
     return (
@@ -140,6 +220,11 @@ function ActiveAutoresponderCard({ campaign, onEdit }) {
                             <CheckCircle2 className="h-3 w-3 mr-1" /> Active
                         </Badge>
                         <span className="font-medium truncate">{campaign.name}</span>
+                        {hasDraft && (
+                            <Badge variant="outline" className="text-amber-700 border-amber-300 bg-amber-50 text-[10px]">
+                                Unsaved draft
+                            </Badge>
+                        )}
                     </div>
                     <p className="text-sm text-muted-foreground truncate">
                         <Mail className="h-3 w-3 inline mr-1" />
@@ -148,7 +233,9 @@ function ActiveAutoresponderCard({ campaign, onEdit }) {
                 </div>
             </div>
             <div className="flex flex-wrap gap-2 pt-1">
-                <Button size="sm" variant="outline" onClick={onEdit}>Edit Email</Button>
+                <Button size="sm" variant="outline" onClick={onEdit}>
+                    {hasDraft ? 'Resume Draft' : 'Edit Email'}
+                </Button>
                 <Button
                     size="sm"
                     variant="ghost"
@@ -168,16 +255,25 @@ function ActiveAutoresponderCard({ campaign, onEdit }) {
     );
 }
 
-function InactiveAutoresponderRow({ campaign, onEdit }) {
+function InactiveAutoresponderRow({ campaign, onEdit, hasDraft }) {
     const { mutate: activate, isPending: activating } = useActivateAutoresponder();
     return (
         <div className="flex items-center justify-between gap-2 rounded border p-3 text-sm">
             <div className="flex-1 min-w-0">
-                <p className="font-medium truncate">{campaign.name}</p>
+                <div className="flex items-center gap-2">
+                    <p className="font-medium truncate">{campaign.name}</p>
+                    {hasDraft && (
+                        <Badge variant="outline" className="text-amber-700 border-amber-300 bg-amber-50 text-[10px]">
+                            Unsaved draft
+                        </Badge>
+                    )}
+                </div>
                 <p className="text-xs text-muted-foreground truncate">{campaign.subject || '(no subject)'}</p>
             </div>
             <div className="flex gap-1 shrink-0">
-                <Button size="sm" variant="ghost" onClick={onEdit}>Edit</Button>
+                <Button size="sm" variant="ghost" onClick={onEdit}>
+                    {hasDraft ? 'Resume' : 'Edit'}
+                </Button>
                 <Button
                     size="sm"
                     onClick={() => activate(campaign.id)}
@@ -192,12 +288,31 @@ function InactiveAutoresponderRow({ campaign, onEdit }) {
 
 function AutoresponderEditor({ campaign, onClose }) {
     const isNew = !campaign;
-    const [name, setName] = useState(campaign?.name || 'New Lead Acknowledgement');
-    const [subject, setSubject] = useState(campaign?.subject || NEW_LEAD_DEFAULT.subject);
-    const [htmlContent, setHtmlContent] = useState(campaign?.html_content || NEW_LEAD_DEFAULT.html_content);
-    const [textContent, setTextContent] = useState(campaign?.text_content || NEW_LEAD_DEFAULT.text_content);
-    const [fromName, setFromName] = useState(campaign?.from_name || '');
-    const [fromEmail, setFromEmail] = useState(campaign?.from_email || '');
+
+    // Baseline = whatever the DB currently has (or sensible defaults for a new autoresponder).
+    // This is what the user sees if they've never typed anything. If they HAVE typed, the
+    // draft stored in localStorage takes over.
+    const baseline = {
+        name: campaign?.name || 'New Lead Acknowledgement',
+        subject: campaign?.subject || NEW_LEAD_DEFAULT.subject,
+        htmlContent: campaign?.html_content || NEW_LEAD_DEFAULT.html_content,
+        textContent: campaign?.text_content || NEW_LEAD_DEFAULT.text_content,
+        fromName: campaign?.from_name || '',
+        fromEmail: campaign?.from_email || '',
+    };
+
+    // The form body is persisted to localStorage keyed per-campaign (or 'new'),
+    // so tab switches / reloads don't lose work. useLocalStorageState seeds
+    // from the DB values the first time this draft key is ever written.
+    const storageKey = draftKey(campaign?.id);
+    const [draft, setDraft] = useLocalStorageState(storageKey, baseline);
+
+    // Merge baseline under the draft so newly-added fields (future additions)
+    // don't crash the UI when an old draft is loaded.
+    const form = { ...baseline, ...(draft || {}) };
+    const update = (field, val) => setDraft({ ...form, [field]: val });
+    const clearDraft = () => setDraft(null);
+
     const [testEmail, setTestEmail] = useState('');
     const [showPreview, setShowPreview] = useState(false);
 
@@ -206,41 +321,66 @@ function AutoresponderEditor({ campaign, onClose }) {
     const { mutate: activate, isPending: activating } = useActivateAutoresponder();
     const { mutate: testSend, isPending: testing, data: testResult, error: testError, reset: resetTest } = useTestSendCampaign();
 
+    // Unsaved changes = anything in the form differs from the campaign baseline.
+    const hasUnsavedChanges = JSON.stringify(form) !== JSON.stringify(baseline);
+
+    const buildPayload = () => ({
+        name: form.name,
+        type: 'autoresponder',
+        trigger_event: 'new_lead',
+        subject: form.subject,
+        html_content: form.htmlContent,
+        text_content: form.textContent,
+        from_name: form.fromName || null,
+        from_email: form.fromEmail || null,
+    });
+
     const handleSaveDraft = () => {
-        const payload = {
-            name,
-            type: 'autoresponder',
-            trigger_event: 'new_lead',
-            subject,
-            html_content: htmlContent,
-            text_content: textContent,
-            from_name: fromName || null,
-            from_email: fromEmail || null,
+        const payload = buildPayload();
+        const onSuccess = (saved) => {
+            clearDraft();
+            // A brand-new autoresponder just got an id — its draft key was 'new',
+            // but from here on it would be keyed by the new id. That's fine —
+            // the new-draft entry is already cleared and the DB is authoritative.
+            if (isNew && saved?.id) {
+                // also wipe any draft that might exist at the new id key (shouldn't, but be safe)
+                try { window.localStorage.removeItem(draftKey(saved.id)); } catch {}
+            }
+            onClose();
         };
         if (isNew) {
-            createCampaign(payload, { onSuccess: () => onClose() });
+            createCampaign(payload, { onSuccess });
         } else {
-            updateCampaign({ id: campaign.id, ...payload }, { onSuccess: () => onClose() });
+            updateCampaign({ id: campaign.id, ...payload }, { onSuccess });
         }
     };
 
     const handleSaveAndActivate = () => {
-        const payload = {
-            name,
-            type: 'autoresponder',
-            trigger_event: 'new_lead',
-            subject,
-            html_content: htmlContent,
-            text_content: textContent,
-            from_name: fromName || null,
-            from_email: fromEmail || null,
-        };
-        const onSave = (saved) => activate(saved.id, { onSuccess: () => onClose() });
+        const payload = buildPayload();
+        const onSaved = (saved) => activate(saved.id, {
+            onSuccess: () => {
+                clearDraft();
+                if (isNew && saved?.id) {
+                    try { window.localStorage.removeItem(draftKey(saved.id)); } catch {}
+                }
+                onClose();
+            },
+        });
         if (isNew) {
-            createCampaign(payload, { onSuccess: onSave });
+            createCampaign(payload, { onSuccess: onSaved });
         } else {
-            updateCampaign({ id: campaign.id, ...payload }, { onSuccess: onSave });
+            updateCampaign({ id: campaign.id, ...payload }, { onSuccess: onSaved });
         }
+    };
+
+    // Cancel with confirmation if there's unsaved work, otherwise close silently.
+    const handleCancel = () => {
+        if (hasUnsavedChanges) {
+            const ok = window.confirm('Discard your unsaved changes?');
+            if (!ok) return;
+        }
+        clearDraft();
+        onClose();
     };
 
     const handleTest = () => {
@@ -253,7 +393,7 @@ function AutoresponderEditor({ campaign, onClose }) {
         testSend({ campaignId: campaign.id, to_email: testEmail, to_name: 'Test User' });
     };
 
-    const previewHtml = htmlContent.replace(/\{\{\s*first_name\s*\}\}/g, 'John')
+    const previewHtml = form.htmlContent.replace(/\{\{\s*first_name\s*\}\}/g, 'John')
         .replace(/\{\{\s*name\s*\}\}/g, 'John Smith')
         .replace(/\{\{\s*phone\s*\}\}/g, '(817) 555-1234')
         .replace(/\{\{\s*email\s*\}\}/g, 'john@example.com');
@@ -261,20 +401,27 @@ function AutoresponderEditor({ campaign, onClose }) {
     return (
         <div className="space-y-4">
             <div className="flex items-center justify-between gap-2">
-                <h3 className="font-semibold">
-                    {isNew ? 'New autoresponder' : `Editing: ${campaign.name}`}
-                </h3>
-                <Button size="sm" variant="ghost" onClick={onClose}>Cancel</Button>
+                <div className="flex items-center gap-2 flex-wrap">
+                    <h3 className="font-semibold">
+                        {isNew ? 'New autoresponder' : `Editing: ${campaign.name}`}
+                    </h3>
+                    {hasUnsavedChanges && (
+                        <Badge variant="outline" className="text-amber-700 border-amber-300 bg-amber-50 text-[10px]">
+                            Unsaved changes — safe to switch tabs
+                        </Badge>
+                    )}
+                </div>
+                <Button size="sm" variant="ghost" onClick={handleCancel}>Cancel</Button>
             </div>
 
             <div className="grid sm:grid-cols-2 gap-3">
                 <div>
                     <label className="block text-xs font-medium mb-1">Internal name</label>
-                    <Input value={name} onChange={(e) => setName(e.target.value)} />
+                    <Input value={form.name} onChange={(e) => update('name', e.target.value)} />
                 </div>
                 <div>
                     <label className="block text-xs font-medium mb-1">Subject line</label>
-                    <Input value={subject} onChange={(e) => setSubject(e.target.value)} />
+                    <Input value={form.subject} onChange={(e) => update('subject', e.target.value)} />
                 </div>
             </div>
 
@@ -284,8 +431,8 @@ function AutoresponderEditor({ campaign, onClose }) {
                         From name <span className="text-muted-foreground">(optional)</span>
                     </label>
                     <Input
-                        value={fromName}
-                        onChange={(e) => setFromName(e.target.value)}
+                        value={form.fromName}
+                        onChange={(e) => update('fromName', e.target.value)}
                         placeholder="Uses default: HonestRoof.com"
                     />
                 </div>
@@ -295,8 +442,8 @@ function AutoresponderEditor({ campaign, onClose }) {
                     </label>
                     <Input
                         type="email"
-                        value={fromEmail}
-                        onChange={(e) => setFromEmail(e.target.value)}
+                        value={form.fromEmail}
+                        onChange={(e) => update('fromEmail', e.target.value)}
                         placeholder="Uses default: SENDLAYER_FROM_EMAIL"
                     />
                 </div>
@@ -308,8 +455,8 @@ function AutoresponderEditor({ campaign, onClose }) {
                     Available placeholders: <code>{'{{first_name}}'}</code>, <code>{'{{name}}'}</code>, <code>{'{{phone}}'}</code>, <code>{'{{email}}'}</code>, <code>{'{{address}}'}</code>
                 </p>
                 <textarea
-                    value={htmlContent}
-                    onChange={(e) => setHtmlContent(e.target.value)}
+                    value={form.htmlContent}
+                    onChange={(e) => update('htmlContent', e.target.value)}
                     rows={14}
                     className="w-full border rounded-md px-3 py-2 text-sm font-mono"
                 />
@@ -318,8 +465,8 @@ function AutoresponderEditor({ campaign, onClose }) {
             <div>
                 <label className="block text-xs font-medium mb-1">Plain text body (fallback)</label>
                 <textarea
-                    value={textContent}
-                    onChange={(e) => setTextContent(e.target.value)}
+                    value={form.textContent}
+                    onChange={(e) => update('textContent', e.target.value)}
                     rows={5}
                     className="w-full border rounded-md px-3 py-2 text-sm"
                 />
@@ -336,7 +483,7 @@ function AutoresponderEditor({ campaign, onClose }) {
                 {showPreview && (
                     <div className="mt-2 border rounded-md p-3 bg-white">
                         <p className="text-xs text-muted-foreground mb-2">
-                            Subject: <strong className="text-foreground">{subject.replace(/\{\{\s*first_name\s*\}\}/g, 'John')}</strong>
+                            Subject: <strong className="text-foreground">{form.subject.replace(/\{\{\s*first_name\s*\}\}/g, 'John')}</strong>
                         </p>
                         <div className="border-t pt-3" dangerouslySetInnerHTML={{ __html: previewHtml }} />
                     </div>
@@ -370,7 +517,7 @@ function AutoresponderEditor({ campaign, onClose }) {
             )}
 
             <div className="flex flex-wrap gap-2 justify-end pt-2 border-t">
-                <Button variant="ghost" onClick={onClose}>Cancel</Button>
+                <Button variant="ghost" onClick={handleCancel}>Cancel</Button>
                 <Button variant="outline" onClick={handleSaveDraft} disabled={creating || updating}>
                     {creating || updating ? 'Saving...' : 'Save as draft'}
                 </Button>
