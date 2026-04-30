@@ -16,7 +16,7 @@ const STATUSES = [
     { key: 'quoted', label: 'Quoted', color: 'bg-amber-500', lightBg: 'bg-amber-50', border: 'border-amber-200' },
     { key: 'accepted', label: 'Accepted', color: 'bg-emerald-500', lightBg: 'bg-emerald-50', border: 'border-emerald-200' },
     { key: 'scheduled', label: 'Service Scheduled', color: 'bg-purple-500', lightBg: 'bg-purple-50', border: 'border-purple-200' },
-    { key: 'completed', label: 'Completed', color: 'bg-slate-500', lightBg: 'bg-slate-50', border: 'border-slate-200' },
+    { key: 'completed', label: 'Service Delivered', color: 'bg-slate-500', lightBg: 'bg-slate-50', border: 'border-slate-200' },
     { key: 'paid', label: 'Paid (recent)', color: 'bg-green-600', lightBg: 'bg-green-50', border: 'border-green-200' },
 ];
 

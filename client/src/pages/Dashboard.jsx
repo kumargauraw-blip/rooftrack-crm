@@ -105,7 +105,7 @@ export default function Dashboard() {
                             <option value="quoted">Quoted</option>
                             <option value="accepted">Accepted</option>
                             <option value="scheduled">Service Scheduled</option>
-                            <option value="completed">Completed</option>
+                            <option value="completed">Service Delivered</option>
                             <option value="paid">Paid (recent)</option>
                         </select>
                         <select

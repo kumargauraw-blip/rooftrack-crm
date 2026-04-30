@@ -98,7 +98,7 @@ export default function LeadDetail() {
                         <option value="quoted">Quoted</option>
                         <option value="accepted">Accepted</option>
                         <option value="scheduled">Service Scheduled</option>
-                        <option value="completed">Service Completed</option>
+                        <option value="completed">Service Delivered</option>
                         <option value="paid">Payment Received</option>
                         <option value="review_received">Review Received</option>
                         <option value="lost">Lost</option>
@@ -383,7 +383,7 @@ export default function LeadDetail() {
                                             <option value="quoted">Quoted</option>
                                             <option value="accepted">Accepted</option>
                                             <option value="scheduled">Scheduled</option>
-                                            <option value="completed">Completed</option>
+                                            <option value="completed">Service Delivered</option>
                                             <option value="paid">Paid</option>
                                             <option value="review_received">Review Received</option>
                                             <option value="lost">Lost</option>
