@@ -17,10 +17,10 @@ const STAGES = [
     { id: 'paid', label: 'Paid (recent)', color: 'bg-green-600' },
 ];
 
-// Recently-paid leads stay visible on the kanban for 30 days as a
-// "celebration" column. Older paid leads age out into the Customers
-// page automatically so the pipeline doesn't grow forever.
-const PAID_VISIBILITY_DAYS = 30;
+// Service Delivered + Paid columns both age out after 30 days so the
+// kanban stays focused on what needs attention. Older records still
+// exist in the DB; older paid customers live on the Customers page.
+const RECENT_VISIBILITY_DAYS = 30;
 
 export default function PipelineFunnel({ leads }) {
     const { mutate: updateStatus } = useUpdateLeadStatus();
@@ -60,16 +60,23 @@ export default function PipelineFunnel({ leads }) {
     };
 
     // Filter that decides which leads appear in a given pipeline column.
-    // The Paid column has special handling: only includes leads paid within
-    // the last 30 days (older paid leads belong on the Customers page).
-    // The Paid column also absorbs the legacy `review_received` status so
-    // earlier customers don't disappear during the rollout.
+    // Both Service Delivered (status='completed') and Paid only show
+    // records from the last 30 days. The Paid column also absorbs the
+    // legacy `review_received` status so earlier customers don't
+    // disappear during the rollout.
     const leadsInStage = (stageId) => {
+        const cutoff = Date.now() - RECENT_VISIBILITY_DAYS * 24 * 60 * 60 * 1000;
+        if (stageId === 'completed') {
+            return leads.filter((l) => {
+                if (l.status !== 'completed') return false;
+                if (!l.completed_at) return true; // missing timestamp - show it (better than hiding)
+                return new Date(l.completed_at + 'Z').getTime() >= cutoff;
+            });
+        }
         if (stageId === 'paid') {
-            const cutoff = Date.now() - PAID_VISIBILITY_DAYS * 24 * 60 * 60 * 1000;
             return leads.filter((l) => {
                 if (l.status !== 'paid' && l.status !== 'review_received') return false;
-                if (!l.paid_at) return true; // missing timestamp — show it (better than hiding)
+                if (!l.paid_at) return true;
                 return new Date(l.paid_at + 'Z').getTime() >= cutoff;
             });
         }

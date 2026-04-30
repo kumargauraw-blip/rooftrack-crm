@@ -243,20 +243,23 @@ router.get('/', authenticate, (req, res) => {
             ORDER BY COALESCE(paid_at, created_at) DESC
         `).all();
     } else {
-        // Default: 'active' pipeline. Excludes lost outright. Paid only
-        // appears if paid within last 30 days — older paid customers
-        // age out into the Customers page automatically.
+        // Default: 'active' pipeline. Excludes lost outright.
+        // Service Delivered (status='completed') and Paid both age out
+        // after 30 days — older records still exist in the DB but
+        // disappear from the active board so it stays focused on what
+        // needs attention.
         const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
         leads = db.prepare(`
             SELECT * FROM leads
             WHERE deleted_at IS NULL
               AND status != 'lost'
               AND (
-                  status NOT IN ('paid', 'review_received')
-                  OR paid_at >= ?
+                  status NOT IN ('completed', 'paid', 'review_received')
+                  OR (status = 'completed' AND completed_at >= ?)
+                  OR (status IN ('paid', 'review_received') AND paid_at >= ?)
               )
             ORDER BY created_at DESC
-        `).all(thirtyDaysAgo);
+        `).all(thirtyDaysAgo, thirtyDaysAgo);
     }
 
     res.json({ success: true, data: leads });
