@@ -1,20 +1,23 @@
-import { useState, useRef, useMemo } from 'react';
+import { useState, useRef } from 'react';
 import { useLeads, useCreateLead, useUpdateLeadStatus } from "../hooks/useLeads";
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
-import { Plus, Search, Phone, ArrowRight, LayoutGrid, List } from 'lucide-react';
+import { Plus, Search, Phone, ArrowRight, LayoutGrid, List, XCircle } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 
+// Active pipeline statuses — match the columns in PipelineFunnel.
+// Lost is intentionally excluded; it lives in its own tab below.
 const STATUSES = [
     { key: 'new', label: 'New', color: 'bg-blue-500', lightBg: 'bg-blue-50', border: 'border-blue-200' },
     { key: 'contacted', label: 'Contacted', color: 'bg-indigo-500', lightBg: 'bg-indigo-50', border: 'border-indigo-200' },
     { key: 'quoted', label: 'Quoted', color: 'bg-amber-500', lightBg: 'bg-amber-50', border: 'border-amber-200' },
     { key: 'accepted', label: 'Accepted', color: 'bg-emerald-500', lightBg: 'bg-emerald-50', border: 'border-emerald-200' },
     { key: 'scheduled', label: 'Service Scheduled', color: 'bg-purple-500', lightBg: 'bg-purple-50', border: 'border-purple-200' },
-    { key: 'lost', label: 'Lost', color: 'bg-red-500', lightBg: 'bg-red-50', border: 'border-red-200' },
+    { key: 'completed', label: 'Completed', color: 'bg-slate-500', lightBg: 'bg-slate-50', border: 'border-slate-200' },
+    { key: 'paid', label: 'Paid (recent)', color: 'bg-green-600', lightBg: 'bg-green-50', border: 'border-green-200' },
 ];
 
 const STATUS_DATE_MAP = {
@@ -22,6 +25,9 @@ const STATUS_DATE_MAP = {
     scheduled: 'scheduled_at',
     quoted: 'quoted_at',
     accepted: 'accepted_at',
+    completed: 'completed_at',
+    paid: 'paid_at',
+    review_received: 'review_received_at',
     lost: 'lost_at',
 };
 
@@ -278,15 +284,12 @@ function TableView({ leads, searchTerm, statusFilter }) {
     );
 }
 
-function getSixMonthsAgo() {
-    const d = new Date();
-    d.setMonth(d.getMonth() - 6);
-    return d.toISOString().split('T')[0];
-}
-
 export default function Leads() {
-    const completedSince = useMemo(() => getSixMonthsAgo(), []);
-    const { data: leads, isLoading } = useLeads({ completedSince });
+    // 'active' (default) shows the working pipeline. 'lost' shows the
+    // archive of leads that didn't convert. Each tab queries the server
+    // with the right `stage` filter so the dataset stays small.
+    const [tab, setTab] = useState('active');
+    const { data: leads, isLoading } = useLeads({ stage: tab });
     const { mutate: createLead } = useCreateLead();
 
     const [searchTerm, setSearchTerm] = useState('');
@@ -315,29 +318,62 @@ export default function Leads() {
                     <p className="text-muted-foreground">Manage your potential customers.</p>
                 </div>
                 <div className="flex items-center gap-2">
-                    {/* View toggle */}
-                    <div className="flex items-center bg-white border rounded-md p-0.5 shadow-sm">
-                        <button
-                            onClick={() => setViewMode('board')}
-                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-sm font-medium transition-colors ${
-                                viewMode === 'board' ? 'bg-slate-900 text-white' : 'text-slate-500 hover:text-slate-700'
-                            }`}
-                        >
-                            <LayoutGrid className="h-3.5 w-3.5" /> Board
-                        </button>
-                        <button
-                            onClick={() => setViewMode('table')}
-                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-sm font-medium transition-colors ${
-                                viewMode === 'table' ? 'bg-slate-900 text-white' : 'text-slate-500 hover:text-slate-700'
-                            }`}
-                        >
-                            <List className="h-3.5 w-3.5" /> Table
-                        </button>
-                    </div>
+                    {/* View toggle — only meaningful in the Active tab */}
+                    {tab === 'active' && (
+                        <div className="flex items-center bg-white border rounded-md p-0.5 shadow-sm">
+                            <button
+                                onClick={() => setViewMode('board')}
+                                className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-sm font-medium transition-colors ${
+                                    viewMode === 'board' ? 'bg-slate-900 text-white' : 'text-slate-500 hover:text-slate-700'
+                                }`}
+                            >
+                                <LayoutGrid className="h-3.5 w-3.5" /> Board
+                            </button>
+                            <button
+                                onClick={() => setViewMode('table')}
+                                className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-sm font-medium transition-colors ${
+                                    viewMode === 'table' ? 'bg-slate-900 text-white' : 'text-slate-500 hover:text-slate-700'
+                                }`}
+                            >
+                                <List className="h-3.5 w-3.5" /> Table
+                            </button>
+                        </div>
+                    )}
                     <Button onClick={() => setIsModalOpen(true)}>
                         <Plus className="mr-2 h-4 w-4" /> Add Lead
                     </Button>
                 </div>
+            </div>
+
+            {/* Tab switcher — Active Pipeline (working) vs Lost (archive). */}
+            <div className="flex items-center gap-1 border-b border-slate-200">
+                <button
+                    onClick={() => setTab('active')}
+                    className={`flex items-center gap-2 px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+                        tab === 'active'
+                            ? 'border-blue-600 text-blue-600'
+                            : 'border-transparent text-slate-500 hover:text-slate-700'
+                    }`}
+                >
+                    <LayoutGrid className="h-4 w-4" />
+                    Active Pipeline
+                </button>
+                <button
+                    onClick={() => setTab('lost')}
+                    className={`flex items-center gap-2 px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+                        tab === 'lost'
+                            ? 'border-red-600 text-red-600'
+                            : 'border-transparent text-slate-500 hover:text-slate-700'
+                    }`}
+                >
+                    <XCircle className="h-4 w-4" />
+                    Lost
+                    {tab === 'lost' && leads?.length > 0 && (
+                        <span className="ml-1 bg-red-100 text-red-700 text-[10px] font-semibold px-1.5 py-0.5 rounded">
+                            {leads.length}
+                        </span>
+                    )}
+                </button>
             </div>
 
             {/* Search + Filters */}
@@ -365,8 +401,20 @@ export default function Leads() {
                 )}
             </div>
 
-            {/* View */}
-            {viewMode === 'board' ? (
+            {/* View. Lost tab is always a list — kanban with one column
+                isn't useful. Active tab supports both board and table. */}
+            {tab === 'lost' ? (
+                leads && leads.length > 0 ? (
+                    <TableView leads={leads} searchTerm={searchTerm} statusFilter="all" />
+                ) : (
+                    <Card>
+                        <CardContent className="py-16 text-center text-muted-foreground">
+                            <XCircle className="h-10 w-10 mx-auto mb-3 opacity-40" />
+                            <p>No lost leads — every lead is still in play.</p>
+                        </CardContent>
+                    </Card>
+                )
+            ) : viewMode === 'board' ? (
                 <KanbanBoard leads={leads} searchTerm={searchTerm} />
             ) : (
                 <TableView leads={leads} searchTerm={searchTerm} statusFilter={statusFilter} />

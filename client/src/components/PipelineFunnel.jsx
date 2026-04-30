@@ -13,7 +13,14 @@ const STAGES = [
     { id: 'quoted', label: 'Quoted', color: 'bg-orange-500' },
     { id: 'accepted', label: 'Accepted', color: 'bg-green-500' },
     { id: 'scheduled', label: 'Service Scheduled', color: 'bg-purple-500' },
+    { id: 'completed', label: 'Completed', color: 'bg-slate-500' },
+    { id: 'paid', label: 'Paid (recent)', color: 'bg-green-600' },
 ];
+
+// Recently-paid leads stay visible on the kanban for 30 days as a
+// "celebration" column. Older paid leads age out into the Customers
+// page automatically so the pipeline doesn't grow forever.
+const PAID_VISIBILITY_DAYS = 30;
 
 export default function PipelineFunnel({ leads }) {
     const { mutate: updateStatus } = useUpdateLeadStatus();
@@ -52,9 +59,25 @@ export default function PipelineFunnel({ leads }) {
         e.dataTransfer.dropEffect = 'move';
     };
 
-    const overflowColumns = STAGES.filter(stage => {
-        const count = leads.filter(l => l.status === stage.id).length;
-        return count > visibleLimit;
+    // Filter that decides which leads appear in a given pipeline column.
+    // The Paid column has special handling: only includes leads paid within
+    // the last 30 days (older paid leads belong on the Customers page).
+    // The Paid column also absorbs the legacy `review_received` status so
+    // earlier customers don't disappear during the rollout.
+    const leadsInStage = (stageId) => {
+        if (stageId === 'paid') {
+            const cutoff = Date.now() - PAID_VISIBILITY_DAYS * 24 * 60 * 60 * 1000;
+            return leads.filter((l) => {
+                if (l.status !== 'paid' && l.status !== 'review_received') return false;
+                if (!l.paid_at) return true; // missing timestamp — show it (better than hiding)
+                return new Date(l.paid_at + 'Z').getTime() >= cutoff;
+            });
+        }
+        return leads.filter((l) => l.status === stageId);
+    };
+
+    const overflowColumns = STAGES.filter((stage) => {
+        return leadsInStage(stage.id).length > visibleLimit;
     });
     const isExpanded = visibleLimit > PAGE_SIZE;
 
@@ -62,7 +85,7 @@ export default function PipelineFunnel({ leads }) {
         <div>
             <div className="flex gap-4 overflow-x-auto pb-4 min-full">
                 {STAGES.map((stage) => {
-                    const fullStageLeads = leads.filter(l => l.status === stage.id);
+                    const fullStageLeads = leadsInStage(stage.id);
                     const stageLeads = fullStageLeads.slice(0, visibleLimit);
                     const isTruncated = fullStageLeads.length > visibleLimit;
 

@@ -1,12 +1,25 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '../lib/api';
 
-export function useLeads({ completedSince } = {}) {
+/**
+ * Fetch leads from the CRM.
+ *
+ * Options:
+ *   stage          - 'active' (default) | 'lost' | 'paid'
+ *                    'active' shows the working pipeline (everything
+ *                    except lost), with paid > 30 days auto-aged out.
+ *                    'lost' returns only lost leads (Lost tab).
+ *                    'paid' returns only paid leads (rare; Customers
+ *                    page uses /customers instead).
+ *   completedSince - legacy ISO date filter; new code should use stage.
+ */
+export function useLeads({ completedSince, stage } = {}) {
     return useQuery({
-        queryKey: ['leads', { completedSince }],
+        queryKey: ['leads', { completedSince, stage }],
         queryFn: async () => {
             const params = {};
-            if (completedSince) params.completedSince = completedSince;
+            if (stage) params.stage = stage;
+            else if (completedSince) params.completedSince = completedSince;
             const { data } = await api.get('/leads', { params });
             return data.data;
         },

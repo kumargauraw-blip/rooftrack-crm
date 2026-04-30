@@ -10,9 +10,28 @@ export function useCustomers(filters = {}) {
             if (filters.completedAfter) params.set('completedAfter', filters.completedAfter);
             if (filters.completedBefore) params.set('completedBefore', filters.completedBefore);
             if (filters.hasReferrals !== undefined) params.set('hasReferrals', filters.hasReferrals);
+            if (filters.hasReview !== undefined) params.set('hasReview', filters.hasReview);
             const qs = params.toString();
             const { data } = await api.get(`/customers${qs ? '?' + qs : ''}`);
             return data.data;
+        },
+    });
+}
+
+/**
+ * Mark or unmark a customer's review_received_at flag. Doesn't change
+ * the customer's status — just records whether they've left a review.
+ */
+export function useMarkReview() {
+    const queryClient = useQueryClient();
+    return useMutation({
+        mutationFn: async ({ id, received }) => {
+            await api.patch(`/customers/${id}/review`, { received });
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['customers'] });
+            queryClient.invalidateQueries({ queryKey: ['lead'] });
+            queryClient.invalidateQueries({ queryKey: ['leads'] });
         },
     });
 }

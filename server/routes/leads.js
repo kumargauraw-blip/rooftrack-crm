@@ -196,27 +196,67 @@ try {
 
 let migrationDone = false;
 
-// GET all leads (with filters)
+// GET all leads (with filters).
+//
+// Query params:
+//   stage         - 'active' (default) | 'lost' | 'paid'
+//                   active = full pipeline EXCEPT lost, plus paid only if
+//                            paid_at is within last 30 days (auto-cleanup)
+//                   lost   = only lost leads (Lost tab on the Leads page)
+//                   paid   = only paid leads (used by Customers page)
+//   completedSince - legacy: returns active pipeline + terminal stages
+//                    after this ISO date. Kept for backward compat with
+//                    older clients; new code should use `stage` instead.
 router.get('/', authenticate, (req, res) => {
     if (!migrationDone) {
         try { ensureTimestampColumns(); ensureLifecycleColumns(); migrationDone = true; } catch (e) { /* ignore */ }
     }
     const db = getDb();
-    const { completedSince } = req.query;
+    const { completedSince, stage } = req.query;
 
     let leads;
-    if (completedSince) {
-        // Active pipeline statuses always returned; terminal statuses filtered by date
+
+    // Legacy path — keep working for any client still using `completedSince`.
+    if (completedSince && !stage) {
         leads = db.prepare(`
             SELECT * FROM leads
-            WHERE status NOT IN ('completed', 'paid', 'review_received')
-               OR (status = 'completed' AND completed_at >= ?)
-               OR (status = 'paid' AND paid_at >= ?)
-               OR (status = 'review_received' AND review_received_at >= ?)
+            WHERE deleted_at IS NULL
+              AND (
+                  status NOT IN ('completed', 'paid', 'review_received')
+                  OR (status = 'completed' AND completed_at >= ?)
+                  OR (status = 'paid' AND paid_at >= ?)
+                  OR (status = 'review_received' AND review_received_at >= ?)
+              )
             ORDER BY created_at DESC
         `).all(completedSince, completedSince, completedSince);
+    } else if (stage === 'lost') {
+        leads = db.prepare(`
+            SELECT * FROM leads
+            WHERE deleted_at IS NULL AND status = 'lost'
+            ORDER BY COALESCE(lost_at, created_at) DESC
+        `).all();
+    } else if (stage === 'paid') {
+        leads = db.prepare(`
+            SELECT * FROM leads
+            WHERE deleted_at IS NULL
+              AND status IN ('paid', 'review_received')
+            ORDER BY COALESCE(paid_at, created_at) DESC
+        `).all();
     } else {
-        leads = db.prepare('SELECT * FROM leads ORDER BY created_at DESC').all();
+        // Default: 'active' pipeline. Excludes lost outright. Paid only
+        // appears if paid within last 30 days — older paid customers
+        // age out into the Customers page automatically.
+        const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+        leads = db.prepare(`
+            SELECT * FROM leads
+            WHERE deleted_at IS NULL
+              AND status != 'lost'
+              AND (
+                  status NOT IN ('paid', 'review_received')
+                  OR paid_at >= ?
+              )
+            ORDER BY created_at DESC
+        `).all(thirtyDaysAgo);
     }
 
     res.json({ success: true, data: leads });

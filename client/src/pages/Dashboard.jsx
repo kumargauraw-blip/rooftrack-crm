@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState } from 'react';
 import { useDashboardSummary } from "../hooks/useDashboard";
 import { Users, Calendar, Hammer, DollarSign, Activity } from "lucide-react";
 import StatsCard from "../components/StatsCard";
@@ -10,16 +10,9 @@ import StormMap from "../components/StormMap";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { useLeads } from "../hooks/useLeads";
 
-function getSixMonthsAgo() {
-    const d = new Date();
-    d.setMonth(d.getMonth() - 6);
-    return d.toISOString().split('T')[0];
-}
-
 export default function Dashboard() {
     const { data: summary, isLoading } = useDashboardSummary();
-    const completedSince = useMemo(() => getSixMonthsAgo(), []);
-    const { data: leads, isLoading: leadsLoading } = useLeads({ completedSince });
+    const { data: leads, isLoading: leadsLoading } = useLeads({ stage: 'active' });
 
     // Filter States
     const [timeFilter, setTimeFilter] = useState('all'); // all, 7days, 30days, 90days
@@ -112,10 +105,8 @@ export default function Dashboard() {
                             <option value="quoted">Quoted</option>
                             <option value="accepted">Accepted</option>
                             <option value="scheduled">Service Scheduled</option>
-                            <option value="completed">Service Completed</option>
-                            <option value="paid">Payment Received</option>
-                            <option value="review_received">Review Received</option>
-                            <option value="lost">Lost</option>
+                            <option value="completed">Completed</option>
+                            <option value="paid">Paid (recent)</option>
                         </select>
                         <select
                             className="h-9 rounded-md border border-input bg-background px-3 text-xs"

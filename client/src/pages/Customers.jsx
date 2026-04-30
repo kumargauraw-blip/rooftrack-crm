@@ -1,11 +1,11 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { useCustomers, useUpdateSatisfaction } from '../hooks/useCustomers';
+import { useCustomers, useUpdateSatisfaction, useMarkReview } from '../hooks/useCustomers';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Star, Users, Phone, Mail, ExternalLink } from 'lucide-react';
+import { Star, Users, Phone, Mail, ExternalLink, Check } from 'lucide-react';
 
 function StarRating({ value, onChange, readonly }) {
     return (
@@ -31,11 +31,13 @@ export default function Customers() {
     const [filters, setFilters] = useState({});
     const { data: customers, isLoading } = useCustomers(filters);
     const { mutate: updateSatisfaction } = useUpdateSatisfaction();
+    const { mutate: markReview } = useMarkReview();
 
     const [minSat, setMinSat] = useState('');
     const [dateFrom, setDateFrom] = useState('');
     const [dateTo, setDateTo] = useState('');
     const [referralFilter, setReferralFilter] = useState('all');
+    const [reviewFilter, setReviewFilter] = useState('all');
 
     const applyFilters = () => {
         const f = {};
@@ -43,6 +45,7 @@ export default function Customers() {
         if (dateFrom) f.completedAfter = dateFrom;
         if (dateTo) f.completedBefore = dateTo;
         if (referralFilter !== 'all') f.hasReferrals = referralFilter;
+        if (reviewFilter !== 'all') f.hasReview = reviewFilter;
         setFilters(f);
     };
 
@@ -51,6 +54,7 @@ export default function Customers() {
         setDateFrom('');
         setDateTo('');
         setReferralFilter('all');
+        setReviewFilter('all');
         setFilters({});
     };
 
@@ -59,7 +63,7 @@ export default function Customers() {
             <div className="flex items-center justify-between">
                 <div>
                     <h1 className="text-2xl font-bold tracking-tight">Happy Customers</h1>
-                    <p className="text-sm text-muted-foreground">Completed jobs — ready for reviews and referrals</p>
+                    <p className="text-sm text-muted-foreground">Paid customers - chase reviews and referrals here</p>
                 </div>
                 <Badge variant="secondary" className="text-sm">
                     <Users className="h-3.5 w-3.5 mr-1" />
@@ -104,6 +108,18 @@ export default function Customers() {
                                 <option value="false">No Referrals</option>
                             </select>
                         </div>
+                        <div className="space-y-1">
+                            <label className="text-xs font-medium text-muted-foreground">Review</label>
+                            <select
+                                className="h-9 rounded-md border border-input bg-background px-3 text-sm w-36"
+                                value={reviewFilter}
+                                onChange={(e) => setReviewFilter(e.target.value)}
+                            >
+                                <option value="all">All</option>
+                                <option value="true">Reviewed</option>
+                                <option value="false">No Review Yet</option>
+                            </select>
+                        </div>
                         <Button size="sm" onClick={applyFilters}>Filter</Button>
                         <Button size="sm" variant="ghost" onClick={clearFilters}>Clear</Button>
                     </div>
@@ -126,8 +142,8 @@ export default function Customers() {
                             <tr className="border-b bg-muted/50">
                                 <th className="text-left py-3 px-4 font-medium">Customer</th>
                                 <th className="text-left py-3 px-4 font-medium hidden md:table-cell">Contact</th>
-                                <th className="text-left py-3 px-4 font-medium">Status</th>
-                                <th className="text-left py-3 px-4 font-medium hidden sm:table-cell">Status Date</th>
+                                <th className="text-left py-3 px-4 font-medium">Review</th>
+                                <th className="text-left py-3 px-4 font-medium hidden sm:table-cell">Paid On</th>
                                 <th className="text-left py-3 px-4 font-medium hidden sm:table-cell">Job Value</th>
                                 <th className="text-left py-3 px-4 font-medium">Satisfaction</th>
                                 <th className="text-center py-3 px-4 font-medium hidden sm:table-cell">Referrals</th>
@@ -156,12 +172,37 @@ export default function Customers() {
                                         </div>
                                     </td>
                                     <td className="py-3 px-4">
-                                        <Badge variant={customer.status === 'review_received' ? 'success' : customer.status === 'paid' ? 'info' : 'secondary'}>
-                                            {customer.status.replace('_', ' ')}
-                                        </Badge>
+                                        {customer.review_received_at ? (
+                                            <div className="flex items-center gap-2">
+                                                <Badge variant="success" className="gap-1">
+                                                    <Check className="h-3 w-3" /> Reviewed
+                                                </Badge>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => markReview({ id: customer.id, received: false })}
+                                                    className="text-[10px] text-muted-foreground hover:text-red-600"
+                                                    title="Unmark review"
+                                                >
+                                                    undo
+                                                </button>
+                                            </div>
+                                        ) : (
+                                            <Button
+                                                size="sm"
+                                                variant="outline"
+                                                className="h-7 text-xs"
+                                                onClick={() => markReview({ id: customer.id, received: true })}
+                                            >
+                                                Mark Reviewed
+                                            </Button>
+                                        )}
                                     </td>
                                     <td className="py-3 px-4 hidden sm:table-cell text-muted-foreground">
-                                        {customer.completed_at ? new Date(customer.completed_at).toLocaleDateString() : '—'}
+                                        {customer.paid_at
+                                            ? new Date(customer.paid_at + 'Z').toLocaleDateString()
+                                            : customer.completed_at
+                                                ? new Date(customer.completed_at).toLocaleDateString()
+                                                : '-'}
                                     </td>
                                     <td className="py-3 px-4 hidden sm:table-cell">
                                         ${(customer.actual_value || customer.estimated_value || 0).toLocaleString()}
