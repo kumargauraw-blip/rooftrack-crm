@@ -220,6 +220,18 @@ router.post('/', (req, res) => {
         // Respond immediately to the website; autoresponder runs after
         res.json({ success: true, message: 'Thank you! We will contact you shortly.' });
 
+        // The autoresponder is OPT-IN. Only fires when the caller explicitly
+        // sends `_trigger_autoresponder: true`. The honestroof.com website
+        // forms send this flag automatically. Manual recoveries (curl, ssh,
+        // scripts, admin tools) just omit the flag and the autoresponder
+        // stays silent — safer default for backfilling leads we already
+        // contacted by phone/email.
+        const shouldTriggerAutoresponder = req.body._trigger_autoresponder === true;
+        if (!shouldTriggerAutoresponder) {
+            console.log(`[AUTORESPONDER] suppressed for lead ${id} (no _trigger_autoresponder flag)`);
+            return;
+        }
+
         // Fire-and-forget autoresponder. Wrap in setImmediate so an exception
         // in the async boundary can't poison the response that already went out.
         setImmediate(() => {
