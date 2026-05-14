@@ -28,7 +28,15 @@ app.use(cors({
     },
     credentials: true
 }));
-app.use(express.json());
+// Capture the raw request body alongside the parsed JSON so webhook
+// handlers (e.g. Retell) can verify HMAC signatures against the exact
+// bytes that were signed. Without this, signature verification will
+// always fail because express.json() re-serializes the parsed object.
+app.use(express.json({
+    verify: (req, res, buf) => {
+        req.rawBody = buf.toString('utf8');
+    },
+}));
 app.use(cookieParser());
 
 // Database Initialization
@@ -43,6 +51,7 @@ app.use('/api/interactions', require('./routes/interactions'));
 app.use('/api/appointments', require('./routes/appointments'));
 app.use('/api/jobs', require('./routes/jobs'));
 app.use('/api/webhooks', require('./routes/webhooks'));
+app.use('/api/webhooks/retell', require('./routes/retell-webhook'));
 app.use('/api/customers', require('./routes/customers'));
 app.use('/api/referrals', require('./routes/referrals'));
 app.use('/api/weather', require('./routes/weather'));

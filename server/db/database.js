@@ -53,6 +53,11 @@ function ensureLeadColumns(db) {
         { name: 'referrer', def: 'TEXT' },             // external referrer URL
         { name: 'landing_page', def: 'TEXT' },         // first page they hit on our site
         { name: 'is_repeat', def: 'INTEGER DEFAULT 0' }, // 0/1 flag — cookie-based repeat submitter
+        // Retell voice-assistant ("Rufus") call ID. Stored on every lead
+        // captured by the post-call webhook so we can dedupe Retell's
+        // retries (network blip, timeout, our 500) without creating
+        // duplicate leads or emails.
+        { name: 'retell_call_id', def: 'TEXT' },
     ];
     const existing = db.pragma('table_info(leads)').map(c => c.name);
     for (const col of newCols) {
@@ -69,6 +74,11 @@ function ensureLeadColumns(db) {
         db.exec('CREATE INDEX IF NOT EXISTS idx_leads_heard_about ON leads(heard_about)');
         db.exec('CREATE INDEX IF NOT EXISTS idx_leads_utm_source ON leads(utm_source)');
         db.exec('CREATE INDEX IF NOT EXISTS idx_leads_utm_campaign ON leads(utm_campaign)');
+        // Partial unique index on retell_call_id: enforces "one lead per
+        // Retell call_id" while still allowing many NULLs (every lead
+        // not from Rufus). Lets the webhook rely on a DB-level race
+        // guarantee instead of just an app-level check.
+        db.exec('CREATE UNIQUE INDEX IF NOT EXISTS uniq_leads_retell_call_id ON leads(retell_call_id) WHERE retell_call_id IS NOT NULL');
     } catch (e) { /* indexes may already exist */ }
 }
 

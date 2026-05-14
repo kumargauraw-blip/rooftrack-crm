@@ -68,6 +68,10 @@ async function sendEmail(opts) {
     };
 
     try {
+        // 15s timeout - if SendLayer is slow or stuck we want to log and
+        // move on, not hang the request indefinitely. Important because
+        // callers like the Retell webhook need to return 200 to the
+        // upstream within Retell's own retry budget.
         const res = await fetch(SENDLAYER_API_URL, {
             method: 'POST',
             headers: {
@@ -75,6 +79,7 @@ async function sendEmail(opts) {
                 Authorization: `Bearer ${apiKey}`,
             },
             body: JSON.stringify(payload),
+            signal: AbortSignal.timeout(15_000),
         });
 
         if (!res.ok) {
