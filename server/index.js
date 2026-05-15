@@ -52,6 +52,8 @@ app.use('/api/appointments', require('./routes/appointments'));
 app.use('/api/jobs', require('./routes/jobs'));
 app.use('/api/webhooks', require('./routes/webhooks'));
 app.use('/api/webhooks/retell', require('./routes/retell-webhook'));
+app.use('/api/webhooks/retell-tools', require('./routes/retell-tools'));
+app.use('/api/webhooks/twilio-sms', require('./routes/twilio-sms'));
 app.use('/api/customers', require('./routes/customers'));
 app.use('/api/referrals', require('./routes/referrals'));
 app.use('/api/weather', require('./routes/weather'));

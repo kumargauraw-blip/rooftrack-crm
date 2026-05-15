@@ -106,6 +106,26 @@ function ensureCampaignAutoresponderColumns(db) {
     } catch (e) { /* index may already exist */ }
 }
 
+function ensureSmsChatSessionsTable(db) {
+    // One row per inbound SMS sender. A row is "live" while
+    // last_seen_at is within the freshness window (24h); after that
+    // a new inbound SMS starts a fresh Retell chat session. lead_id
+    // is set once the record_sms_lead tool fires.
+    db.exec(`
+        CREATE TABLE IF NOT EXISTS sms_chat_sessions (
+            phone TEXT PRIMARY KEY,
+            retell_chat_id TEXT NOT NULL,
+            last_seen_at TEXT NOT NULL,
+            created_at TEXT NOT NULL,
+            lead_id TEXT,
+            status TEXT NOT NULL DEFAULT 'active'
+        )
+    `);
+    try {
+        db.exec('CREATE INDEX IF NOT EXISTS idx_sms_chat_retell_chat_id ON sms_chat_sessions(retell_chat_id)');
+    } catch (e) { /* may exist */ }
+}
+
 function initialize() {
     const db = connect();
 
@@ -116,6 +136,7 @@ function initialize() {
     // Then ensure all columns exist (handles both fresh and existing DBs)
     ensureLeadColumns(db);
     ensureCampaignAutoresponderColumns(db);
+    ensureSmsChatSessionsTable(db);
 
     // Backfill completed_at for imported customers
     try {
