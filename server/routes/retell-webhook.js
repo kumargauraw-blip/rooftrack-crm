@@ -18,10 +18,13 @@
  *   4. INSERT lead with source_channel='voice_assistant_rufus'
  *   5. Send Dennis the notification email
  *
- * No autoresponder fires for voice leads in v1. The caller just spoke
- * with our AI on the phone and is expecting Dennis to call back; an
- * automated "thanks for reaching out" email immediately after is weird.
- * Dennis (who just got the lead-captured email) will handle follow-up.
+ * Autoresponder behavior: fires the same "new_lead" campaign the
+ * website uses, but only if Rufus actually captured a syntactically
+ * valid email address. Rationale: Rufus's call flow explicitly tells
+ * the caller "You should receive an email shortly letting you know
+ * your estimate is in progress" - so not sending the email would
+ * leave a promise broken. The looksLikeEmail() check in autoresponder.js
+ * defends against speech-to-text garbage.
  *
  * Required env:
  *   RETELL_API_KEY     - also used for webhook signature verification
@@ -37,6 +40,7 @@ const crypto = require('crypto');
 const { verify: verifyRetellWebhook } = require('retell-sdk');
 const { getDb } = require('../db/database');
 const { sendEmail } = require('../lib/email');
+const { fireNewLeadAutoresponder } = require('../lib/autoresponder');
 
 // ---- helpers (mostly lifted from the standalone webhook, refactored
 // for our coding style and to remove duplicated escape logic) ----
@@ -259,7 +263,23 @@ router.post('/', async (req, res) => {
             `INSERT INTO interactions (id, lead_id, type, summary) VALUES (?, ?, 'system', ?)`,
         ).run(crypto.randomUUID(), leadId, `Lead captured by Rufus voice assistant${callId ? ` (call_id ${callId})` : ''}`);
 
-        // 6. Email Dennis. We send TO him (not via the implicit BCC that
+        // 6. Fire the new-lead autoresponder if the caller gave a usable
+        // email. Rufus promises this email on the call, so we keep the
+        // promise. Fire-and-forget via setImmediate so a slow SendLayer
+        // can't push us past Retell's webhook timeout (10s).
+        setImmediate(() => {
+            fireNewLeadAutoresponder(db, {
+                id: leadId,
+                name,
+                phone,
+                email,
+                address,
+            }).catch((err) => {
+                console.error('[RETELL WEBHOOK] autoresponder unhandled:', err);
+            });
+        });
+
+        // 7. Email Dennis. We send TO him (not via the implicit BCC that
         // sendEmail adds for customer emails) because this email is FOR
         // Dennis. sendEmail still tries to BCC him - the dedupe Set in
         // there will skip the BCC since he's already the To: recipient.
