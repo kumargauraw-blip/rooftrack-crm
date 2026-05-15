@@ -72,11 +72,14 @@ async function createChatCompletion(chatId, content) {
     });
     if (!result.ok) return result;
 
-    // The response has a `messages` array containing the new exchange.
-    // For our purposes we just need the agent's text replies in order.
-    const msgs = result.body.messages || [];
+    // The response has a `messages` array (or `message_with_tool_calls`
+    // depending on SDK version). Pull out agent text replies regardless
+    // of whether the role is reported as 'agent' or 'assistant', and
+    // skip tool-call internal messages.
+    const msgs = result.body.messages || result.body.message_with_tool_calls || [];
+    const AGENT_ROLES = new Set(['agent', 'assistant']);
     const replies = msgs
-        .filter((m) => m.role === 'agent' && typeof m.content === 'string' && m.content.trim())
+        .filter((m) => AGENT_ROLES.has(m.role) && typeof m.content === 'string' && m.content.trim())
         .map((m) => m.content.trim());
     return { ok: true, replies, rawMessages: msgs };
 }

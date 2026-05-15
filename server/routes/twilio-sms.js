@@ -102,9 +102,6 @@ router.post('/', express.urlencoded({ extended: false }), async (req, res) => {
         const completion = await createChatCompletion(session.retell_chat_id, messageBody);
         if (!completion.ok) {
             console.error(`[TWILIO SMS] chat completion failed: ${completion.error}`);
-            // Best-effort: tell the customer we'll follow up so the
-            // conversation doesn't feel dead. Dennis will see the lead
-            // is missing details and reach out manually.
             await sendSms({
                 to: from,
                 body: "Sorry, we're having a hiccup. We've noted your message and someone from HonestRoof will reach out shortly.",
@@ -112,12 +109,22 @@ router.post('/', express.urlencoded({ extended: false }), async (req, res) => {
             return res.status(200).type('application/xml').send('<Response/>');
         }
 
-        // 4. Push each agent reply back as SMS. Usually there's one,
-        // but if Retell emits multiples we honor that.
+        // Debug: how many replies did Retell give us, what were they?
+        const rawRoles = (completion.rawMessages || []).map((m) => m.role).join(',');
+        console.log(`[TWILIO SMS] retell returned ${completion.replies.length} replies (raw roles: ${rawRoles || 'none'})`);
+        if (completion.replies.length === 0 && (completion.rawMessages || []).length > 0) {
+            // Likely role-name drift in the Retell SDK (e.g. "assistant"
+            // instead of "agent"). Dump the first message for debugging.
+            console.log(`[TWILIO SMS] first raw msg: ${JSON.stringify(completion.rawMessages[0]).substring(0, 300)}`);
+        }
+
+        // 4. Push each agent reply back as SMS.
         for (const reply of completion.replies) {
             const out = await sendSms({ to: from, body: reply });
             if (!out.ok) {
                 console.error(`[TWILIO SMS] sendSms failed: ${out.error}`);
+            } else {
+                console.log(`[TWILIO SMS] sent reply sid=${out.sid} to=${from} body_len=${reply.length}`);
             }
         }
 
