@@ -41,15 +41,23 @@ router.post('/', express.urlencoded({ extended: false }), async (req, res) => {
     const messageSid = params.MessageSid;
 
     try {
-        // 1. Signature verification. We rebuild the URL Twilio called
-        // from request headers - X-Forwarded-Proto/Host because LiteSpeed
-        // sits in front of us.
+        // 1. Signature verification. Twilio signs the EXACT URL it was
+        // configured to call. Because LiteSpeed proxies to Node, what we
+        // see in req.headers.host is the upstream (localhost:3001), not
+        // the public hostname Twilio used. Two ways to fix:
+        //   (a) Trust X-Forwarded-Host/Proto if LiteSpeed sets them.
+        //   (b) Pin the URL via TWILIO_WEBHOOK_URL env (definitive -
+        //       must match exactly what's saved in the Twilio console).
+        // We try (b) first, then (a), then fall back to a guess. On
+        // failure we log the URL we tried so you can compare it to the
+        // URL pasted in the Twilio console.
+        const sig = req.headers['x-twilio-signature'];
         const proto = req.headers['x-forwarded-proto'] || 'https';
         const host = req.headers['x-forwarded-host'] || req.headers.host;
-        const url = `${proto}://${host}${req.originalUrl}`;
-        const sig = req.headers['x-twilio-signature'];
+        const reconstructedUrl = `${proto}://${host}${req.originalUrl}`;
+        const url = process.env.TWILIO_WEBHOOK_URL || reconstructedUrl;
         if (!verifyTwilioSignature(url, params, sig)) {
-            console.warn(`[TWILIO SMS] invalid signature from ${from} sid=${messageSid}`);
+            console.warn(`[TWILIO SMS] invalid signature from ${from} sid=${messageSid} tried_url=${url}${url !== reconstructedUrl ? ` (header_reconstruction=${reconstructedUrl})` : ''}`);
             return res.status(401).send('<Response/>');
         }
 
