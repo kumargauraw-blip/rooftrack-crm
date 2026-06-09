@@ -31,6 +31,7 @@ const router = express.Router();
 const crypto = require('crypto');
 const { getDb } = require('../db/database');
 const { sendEmail } = require('../lib/email');
+const { fireNewLeadAutoresponder } = require('../lib/autoresponder');
 
 function cleanString(v) {
     if (v === undefined || v === null) return '';
@@ -176,6 +177,25 @@ router.post('/record-sms-lead', async (req, res) => {
             db.prepare(`UPDATE sms_chat_sessions SET lead_id = ?, status = 'lead_captured' WHERE retell_chat_id = ?`)
                 .run(leadId, chatId);
         }
+
+        // Fire the new-lead autoresponder if the customer gave a usable
+        // email. Roofus promises this on the text ("You'll get an email
+        // confirming your estimate is in progress"), so we keep the
+        // promise - same campaign website and voice leads get. The
+        // looksLikeEmail() guard inside makes this a no-op when no valid
+        // email was captured. Fire-and-forget via setImmediate so a slow
+        // SendLayer can't delay our response back to Retell.
+        setImmediate(() => {
+            fireNewLeadAutoresponder(db, {
+                id: leadId,
+                name,
+                phone,
+                email,
+                address,
+            }).catch((err) => {
+                console.error('[RETELL TOOL] autoresponder unhandled:', err);
+            });
+        });
 
         // Email Dennis. Send TO him directly; sendEmail still BCCs him
         // but the dedupe Set prevents the duplicate.
