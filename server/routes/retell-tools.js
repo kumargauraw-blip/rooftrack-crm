@@ -92,7 +92,7 @@ router.post('/record-sms-lead', async (req, res) => {
         const name = cleanString(args.name);
         const email = cleanString(args.email);
         const address = cleanString(args.property_address || args.address);
-        const phone = cleanString(args.callback_phone || args.phone);
+        const parsedPhone = cleanString(args.callback_phone || args.phone);
 
         // chat_id can live in body.chat.chat_id, body.chat_id, body.call.chat_id, etc.
         const chatId =
@@ -101,27 +101,55 @@ router.post('/record-sms-lead', async (req, res) => {
             cleanString(body.call?.chat_id) ||
             null;
 
-        if (!name || !phone) {
-            console.warn('[RETELL TOOL] record-sms-lead missing required fields', { name, phone });
-            return res.json({ success: false, error: 'missing name or phone' });
-        }
-
         const db = getDb();
 
-        // Idempotency: if this chat already produced a lead, return that
-        // one instead of inserting a duplicate (Retell may retry tool
-        // calls on transient failures).
+        // Look up the SMS session for this chat. We need it for two things:
+        //   (a) idempotency - don't double-insert if Retell retries the
+        //       tool call on a transient failure; and
+        //   (b) the customer's REAL phone number. The session's `phone` is
+        //       the From address of the inbound SMS - the number the
+        //       customer is texting from, and the most reliable callback
+        //       we have. Roofus sometimes captures junk for callback_phone
+        //       (e.g. the customer replies "just text me" and it records
+        //       the literal word "texter"), so we only trust the
+        //       conversational value when it actually looks like a phone
+        //       number; otherwise we fall back to the texting number.
+        let session = null;
         if (chatId) {
-            const existing = db
-                .prepare(`SELECT lead_id FROM sms_chat_sessions WHERE retell_chat_id = ? AND lead_id IS NOT NULL`)
+            session = db
+                .prepare(`SELECT lead_id, phone FROM sms_chat_sessions WHERE retell_chat_id = ?`)
                 .get(chatId);
-            if (existing?.lead_id) {
-                console.log(`[RETELL TOOL] duplicate record-sms-lead for chat ${chatId}, lead ${existing.lead_id} already exists`);
-                return res.json({ success: true, lead_id: existing.lead_id, duplicate: true });
+            if (session?.lead_id) {
+                console.log(`[RETELL TOOL] duplicate record-sms-lead for chat ${chatId}, lead ${session.lead_id} already exists`);
+                return res.json({ success: true, lead_id: session.lead_id, duplicate: true });
             }
         }
 
+        const sessionPhone = cleanString(session?.phone);
+        const digitCount = (s) => (String(s).match(/\d/g) || []).length;
+        // Prefer a valid customer-provided callback (>= 10 digits, e.g.
+        // they gave a different number to call); otherwise use the texting
+        // number; otherwise whatever we had (so we still capture the lead).
+        const usedTextingNumber =
+            digitCount(parsedPhone) < 10 && !!sessionPhone;
+        const phone = digitCount(parsedPhone) >= 10
+            ? parsedPhone
+            : (sessionPhone || parsedPhone);
+
+        if (!name || !phone) {
+            console.warn('[RETELL TOOL] record-sms-lead missing required fields', { name, parsedPhone, sessionPhone });
+            return res.json({ success: false, error: 'missing name or phone' });
+        }
+
         const leadId = crypto.randomUUID();
+        const noteParts = [];
+        if (chatId) noteParts.push(`Retell chat_id: ${chatId}`);
+        if (usedTextingNumber) {
+            noteParts.push(
+                `Callback set to texting number; Roofus captured "${parsedPhone || '(blank)'}" as callback.`,
+            );
+        }
+        const notes = noteParts.length ? noteParts.join(' | ') : null;
         try {
             db.prepare(`
                 INSERT INTO leads (id, name, phone, email, address, source_channel, status, priority, notes, created_at, updated_at)
@@ -132,7 +160,7 @@ router.post('/record-sms-lead', async (req, res) => {
                 phone,
                 email || null,
                 address || null,
-                chatId ? `Retell chat_id: ${chatId}` : null,
+                notes,
             );
         } catch (e) {
             console.error('[RETELL TOOL] lead insert failed:', e.message);
