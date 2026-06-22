@@ -13,6 +13,7 @@ import ReferralCampaigns from './pages/ReferralCampaigns';
 import RevenueAttribution from './pages/RevenueAttribution';
 import Campaigns from './pages/Campaigns';
 import StormIntel from './pages/StormIntel';
+import Settings from './pages/Settings';
 
 const queryClient = new QueryClient();
 
@@ -50,6 +51,7 @@ export default function App() {
               <Route path="storm-intel" element={<StormIntel />} />
               <Route path="campaigns" element={<Campaigns />} />
               <Route path="campaigns/:id" element={<Campaigns />} />
+              <Route path="settings" element={<Settings />} />
             </Route>
           </Routes>
         </AuthProvider>

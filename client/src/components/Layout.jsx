@@ -40,6 +40,7 @@ export default function Layout() {
         { to: '/campaigns', icon: Megaphone, label: 'Campaigns' },
         { to: '/storm-intel', icon: Zap, label: 'Storm Intel' },
         { to: '/reports', icon: BarChart3, label: 'Reports' },
+        { to: '/settings', icon: Settings, label: 'Settings' },
     ];
 
     return (

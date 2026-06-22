@@ -44,6 +44,7 @@ db.initialize();
 
 // Routes
 app.use('/api/auth', require('./routes/auth'));
+app.use('/api/users', require('./routes/users'));
 app.use('/api/dashboard', require('./routes/dashboard'));
 app.use('/api/leads/public', require('./routes/public-leads'));
 app.use('/api/leads', require('./routes/leads'));

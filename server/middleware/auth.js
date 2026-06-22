@@ -16,4 +16,23 @@ const authenticate = (req, res, next) => {
     }
 };
 
+/**
+ * Like authenticate, but additionally requires the user's role to be 'admin'.
+ * Used for user-management endpoints (create user, reset another user's
+ * password). Returns 403 for authenticated-but-non-admin users.
+ */
+const requireAdmin = (req, res, next) => {
+    authenticate(req, res, () => {
+        if (req.user?.role !== 'admin') {
+            return res.status(403).json({ success: false, error: 'Admin access required' });
+        }
+        next();
+    });
+};
+
+// Default export stays the authenticate function for backward compatibility
+// with the many routes that `require('../middleware/auth')` directly. Named
+// helpers hang off it so callers can also destructure { requireAdmin }.
 module.exports = authenticate;
+module.exports.authenticate = authenticate;
+module.exports.requireAdmin = requireAdmin;
