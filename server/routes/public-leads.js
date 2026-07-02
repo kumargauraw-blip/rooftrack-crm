@@ -108,6 +108,21 @@ router.post('/', (req, res) => {
             return res.status(400).json({ success: false, error: 'Phone is required.' });
         }
 
+        // Storm Damage File Builder leads are INFORMATIONAL, not estimate
+        // requests. The homeowner used the free documentation tool; they did
+        // not ask for a quote. So we file them under a distinct channel, mark
+        // them low-priority (not a hot estimate lead), and never fire the
+        // customer autoresponder for them (see below).
+        const STORM_SOURCES = new Set([
+            'DFW Storm Damage File Builder',
+            'storm_damage_file',
+        ]);
+        const isStormInfoLead = STORM_SOURCES.has((source || '').trim());
+        const sourceChannel = isStormInfoLead
+            ? 'storm_damage_file'
+            : source || 'website';
+        const priority = isStormInfoLead ? 'cold' : 'warm';
+
         const db = getDb();
         const id = crypto.randomUUID();
         const attr = extractAttribution(attribution);
@@ -121,7 +136,7 @@ router.post('/', (req, res) => {
                 referrer, landing_page, is_repeat
             )
             VALUES (
-                ?, ?, ?, ?, ?, ?, ?, 'new', 'warm', datetime('now'),
+                ?, ?, ?, ?, ?, ?, ?, 'new', ?, datetime('now'),
                 ?, ?,
                 ?, ?, ?, ?, ?,
                 ?, ?, ?,
@@ -134,7 +149,8 @@ router.post('/', (req, res) => {
             email ? email.trim() : null,
             address ? address.trim() : null,
             notes ? notes.trim() : null,
-            source || 'website',
+            sourceChannel,
+            priority,
             attr.heard_about, attr.heard_about_other,
             attr.utm_source, attr.utm_medium, attr.utm_campaign, attr.utm_content, attr.utm_term,
             attr.gclid, attr.fbclid, attr.msclkid,
@@ -143,7 +159,13 @@ router.post('/', (req, res) => {
 
         db.prepare(`
             INSERT INTO interactions (id, lead_id, type, summary) VALUES (?, ?, 'system', ?)
-        `).run(crypto.randomUUID(), id, `Lead submitted via ${source || 'website'}`);
+        `).run(
+            crypto.randomUUID(),
+            id,
+            isStormInfoLead
+                ? 'Informational lead — used the free Storm Damage File Builder (did NOT request an estimate). Potential soft follow-up.'
+                : `Lead submitted via ${source || 'website'}`,
+        );
 
         // Respond immediately to the website; autoresponder runs after
         res.json({ success: true, message: 'Thank you! We will contact you shortly.' });
@@ -154,9 +176,15 @@ router.post('/', (req, res) => {
         // scripts, admin tools) just omit the flag and the autoresponder
         // stays silent — safer default for backfilling leads we already
         // contacted by phone/email.
-        const shouldTriggerAutoresponder = req.body._trigger_autoresponder === true;
+        // Storm-info leads never get the estimate autoresponder, regardless
+        // of the flag — they didn't ask for an estimate.
+        const shouldTriggerAutoresponder =
+            req.body._trigger_autoresponder === true && !isStormInfoLead;
         if (!shouldTriggerAutoresponder) {
-            console.log(`[AUTORESPONDER] suppressed for lead ${id} (no _trigger_autoresponder flag)`);
+            console.log(
+                `[AUTORESPONDER] suppressed for lead ${id}` +
+                    (isStormInfoLead ? ' (storm info lead)' : ' (no _trigger_autoresponder flag)'),
+            );
             return;
         }
 
