@@ -52,13 +52,30 @@ const FIELD_LABELS = {
     customer_phone: 'Customer Phone',
     customer_email: 'Customer Email',
     property_address_or_area: 'Property / Area',
+    project_type: 'Project Type',
+    service_requested: 'Service Requested',
     roofing_need: 'Roofing Need',
     urgency: 'Urgency',
     preferred_callback_time: 'Preferred Callback Time',
-    qualified_roofing_lead: 'Qualified Roofing Lead',
+    qualified_roofing_lead: 'Qualified Lead',
+    other_project_mentioned: 'Other Project Mentioned',
     summary_for_team: 'Summary',
     recommended_next_action: 'Recommended Next Action',
 };
+
+/**
+ * Rufus silently classifies every call as roofing work or other property
+ * work (`project_type`). Map that to the business that owns the lead.
+ *
+ * Anything unrecognised — including calls from an older agent version that
+ * never emitted `project_type` — falls back to 'honestroof'. That is the
+ * safe default: it preserves the previous behaviour exactly.
+ */
+function resolveBusinessUnit(data = {}) {
+    return cleanString(data.project_type).toLowerCase() === 'other_services'
+        ? 'coffee_project'
+        : 'honestroof';
+}
 
 function cleanString(value) {
     if (value === undefined || value === null) return '';
@@ -124,7 +141,7 @@ function urgencyToPriority(urgency) {
     return 'cold';
 }
 
-function buildEmail(payload = {}) {
+function buildEmail(payload = {}, businessUnit = 'honestroof') {
     const call = payload.call || {};
     const data = getCustomAnalysisData(call);
     const subjectName =
@@ -132,10 +149,21 @@ function buildEmail(payload = {}) {
         cleanString(data.customer_phone) ||
         cleanString(call.from_number) ||
         'New caller';
-    const subject = `New HonestRoof Lead via Voice Assistant Rufus: ${subjectName}`;
+    const isRoofing = businessUnit === 'honestroof';
+    const subject = isRoofing
+        ? `New HonestRoof Lead via Voice Assistant Rufus: ${subjectName}`
+        : `New NON-ROOFING Lead via Rufus (Coffee & Project): ${subjectName}`;
+    const heading = isRoofing
+        ? 'New HonestRoof Lead via Voice Assistant Rufus'
+        : 'New Non-Roofing Lead via Voice Assistant Rufus';
+    const blurb = isRoofing
+        ? 'Rufus collected an identified roofing lead. Please review and follow up.'
+        : 'Rufus collected a NON-ROOFING lead - this one is for Coffee &amp; Project. '
+          + 'No roofing estimate email was sent to the customer, so they are expecting a call.';
 
     const rows = [
         ['Source', 'Voice Assistant Rufus'],
+        ['Business', isRoofing ? 'HonestRoof (roofing)' : 'Coffee & Project (non-roofing)'],
         ['Call ID', cleanString(call.call_id) || 'unknown'],
         ['Direction', cleanString(call.direction) || 'unknown'],
         ['Caller Number', cleanString(call.from_number) || 'not provided'],
@@ -156,14 +184,14 @@ function buildEmail(payload = {}) {
     const transcript = cleanString(call.transcript);
     const html = `<!doctype html>
 <html><body style="font-family:Arial,sans-serif;line-height:1.45;color:#111;">
-  <h2>New HonestRoof Lead via Voice Assistant Rufus</h2>
-  <p>Rufus collected an identified roofing lead. Please review and follow up.</p>
+  <h2>${escapeHtml(heading)}</h2>
+  <p>${blurb}</p>
   <table cellpadding="0" cellspacing="0" style="border-collapse:collapse;">${tableRows}</table>
   ${transcript ? `<h3>Transcript</h3><pre style="white-space:pre-wrap;background:#f7f7f7;padding:12px;border-radius:6px;">${escapeHtml(transcript)}</pre>` : ''}
 </body></html>`;
     const plain = [
-        'New HonestRoof Lead via Voice Assistant Rufus',
-        'Rufus collected an identified roofing lead. Please review and follow up.',
+        heading,
+        blurb.replace(/&amp;/g, '&'),
         '',
         ...rows.map(([label, value]) => `${label}: ${value}`),
         transcript ? `\nTranscript:\n${transcript}` : '',
@@ -231,10 +259,16 @@ router.post('/', async (req, res) => {
         const email = cleanString(data.customer_email) || null;
         const address = cleanString(data.property_address_or_area) || null;
         const priority = urgencyToPriority(data.urgency);
+        const businessUnit = resolveBusinessUnit(data);
 
         // Stash everything we don't have a dedicated column for in notes,
         // so Dennis can see it on the lead detail page.
         const noteParts = [];
+        if (businessUnit === 'coffee_project') {
+            noteParts.push('NON-ROOFING lead — Coffee & Project. No roofing estimate email was sent to the customer.');
+        }
+        if (data.service_requested) noteParts.push(`Service requested: ${cleanString(data.service_requested)}`);
+        if (data.other_project_mentioned) noteParts.push(`Also mentioned: ${cleanString(data.other_project_mentioned)}`);
         if (data.roofing_need) noteParts.push(`Roofing need: ${cleanString(data.roofing_need)}`);
         if (data.urgency) noteParts.push(`Urgency: ${cleanString(data.urgency)}`);
         if (data.preferred_callback_time) noteParts.push(`Preferred callback: ${cleanString(data.preferred_callback_time)}`);
@@ -247,9 +281,9 @@ router.post('/', async (req, res) => {
         // any race where two webhook deliveries arrive within milliseconds.
         try {
             db.prepare(
-                `INSERT INTO leads (id, name, phone, email, address, source_channel, priority, notes, retell_call_id, created_at, updated_at)
-                 VALUES (?, ?, ?, ?, ?, 'voice_assistant_rufus', ?, ?, ?, datetime('now'), datetime('now'))`,
-            ).run(leadId, name, phone, email, address, priority, notes, callId);
+                `INSERT INTO leads (id, name, phone, email, address, source_channel, business_unit, priority, notes, retell_call_id, created_at, updated_at)
+                 VALUES (?, ?, ?, ?, ?, 'voice_assistant_rufus', ?, ?, ?, ?, datetime('now'), datetime('now'))`,
+            ).run(leadId, name, phone, email, address, businessUnit, priority, notes, callId);
         } catch (e) {
             if (/UNIQUE/i.test(String(e.message))) {
                 console.log(`[RETELL WEBHOOK] race on call_id ${callId}, treating as duplicate`);
@@ -261,30 +295,45 @@ router.post('/', async (req, res) => {
         // 5. Log the interaction for the lead detail timeline.
         db.prepare(
             `INSERT INTO interactions (id, lead_id, type, summary) VALUES (?, ?, 'system', ?)`,
-        ).run(crypto.randomUUID(), leadId, `Lead captured by Rufus voice assistant${callId ? ` (call_id ${callId})` : ''}`);
+        ).run(
+            crypto.randomUUID(),
+            leadId,
+            businessUnit === 'coffee_project'
+                ? `Non-roofing lead captured by Rufus for Coffee & Project${callId ? ` (call_id ${callId})` : ''}`
+                : `Lead captured by Rufus voice assistant${callId ? ` (call_id ${callId})` : ''}`,
+        );
 
-        // 6. Fire the new-lead autoresponder if the caller gave a usable
-        // email. Rufus promises this email on the call, so we keep the
-        // promise. Fire-and-forget via setImmediate so a slow SendLayer
-        // can't push us past Retell's webhook timeout (10s).
-        setImmediate(() => {
-            fireNewLeadAutoresponder(db, {
-                id: leadId,
-                name,
-                phone,
-                email,
-                address,
-            }).catch((err) => {
-                console.error('[RETELL WEBHOOK] autoresponder unhandled:', err);
+        // 6. Fire the new-lead autoresponder — ROOFING LEADS ONLY.
+        // The active new_lead campaign is the roofing "your estimate is in
+        // progress" email. Sending that to someone who called about a fence,
+        // a water heater or a kitchen remodel is wrong and confusing, so
+        // non-roofing leads are skipped: Dennis gets the notification email
+        // in step 7 and his team follows up directly. When Coffee & Project
+        // has its own campaign, route to it here instead of skipping.
+        if (businessUnit === 'honestroof') {
+            // Fire-and-forget via setImmediate so a slow SendLayer can't push
+            // us past Retell's webhook timeout (10s).
+            setImmediate(() => {
+                fireNewLeadAutoresponder(db, {
+                    id: leadId,
+                    name,
+                    phone,
+                    email,
+                    address,
+                }).catch((err) => {
+                    console.error('[RETELL WEBHOOK] autoresponder unhandled:', err);
+                });
             });
-        });
+        } else {
+            console.log(`[RETELL WEBHOOK] roofing autoresponder suppressed for lead ${leadId} (business_unit=${businessUnit})`);
+        }
 
         // 7. Email Dennis. We send TO him (not via the implicit BCC that
         // sendEmail adds for customer emails) because this email is FOR
         // Dennis. sendEmail still tries to BCC him - the dedupe Set in
         // there will skip the BCC since he's already the To: recipient.
         const dennisEmail = process.env.CRM_BCC_EMAIL || 'dennis@honestroof.com';
-        const built = buildEmail(payload);
+        const built = buildEmail(payload, businessUnit);
         const emailResult = await sendEmail({
             toEmail: dennisEmail,
             toName: 'Dennis Harrison',

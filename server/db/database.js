@@ -58,6 +58,15 @@ function ensureLeadColumns(db) {
         // retries (network blip, timeout, our 500) without creating
         // duplicate leads or emails.
         { name: 'retell_call_id', def: 'TEXT' },
+        // Which business a lead belongs to:
+        //   'honestroof'     — roofing work (HonestRoof.com)
+        //   'coffee_project' — every other property service, delivered by
+        //                      Coffee & Project, HonestRoof's partner company
+        // Drives which autoresponder fires (a fence enquiry must NOT get the
+        // roofing "your roof estimate is in progress" email) and lets the
+        // pipeline be filtered by business. Defaults to honestroof so every
+        // existing lead and every website form keeps its current behaviour.
+        { name: 'business_unit', def: "TEXT DEFAULT 'honestroof'" },
     ];
     const existing = db.pragma('table_info(leads)').map(c => c.name);
     for (const col of newCols) {
@@ -79,6 +88,8 @@ function ensureLeadColumns(db) {
         // not from Rufus). Lets the webhook rely on a DB-level race
         // guarantee instead of just an app-level check.
         db.exec('CREATE UNIQUE INDEX IF NOT EXISTS uniq_leads_retell_call_id ON leads(retell_call_id) WHERE retell_call_id IS NOT NULL');
+        // "Show me all the Coffee & Project leads" / per-business reporting.
+        db.exec('CREATE INDEX IF NOT EXISTS idx_leads_business_unit ON leads(business_unit)');
     } catch (e) { /* indexes may already exist */ }
 }
 
