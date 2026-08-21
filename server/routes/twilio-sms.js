@@ -27,9 +27,13 @@ const router = express.Router();
 const { getDb } = require('../db/database');
 const { verifyTwilioSignature, sendSms } = require('../lib/twilio');
 const { createChat, createChatCompletion } = require('../lib/retell-chat');
+const { shouldRespondToSms } = require('../lib/sms-intent');
 
 // 24h freshness window — silence longer than this starts a new chat.
 const SESSION_FRESHNESS_MS = 24 * 60 * 60 * 1000;
+
+// Hard ceiling on agent replies in one conversation - a runaway-bot backstop.
+const MAX_REPLIES_PER_SESSION = 12;
 
 router.post('/', express.urlencoded({ extended: false }), async (req, res) => {
     // Twilio expects an HTTP 200 (any 2xx) for "received". We respond
@@ -76,6 +80,19 @@ router.post('/', express.urlencoded({ extended: false }), async (req, res) => {
             .get(from, cutoffIso);
 
         if (!session) {
+            // Triage the opening message BEFORE spending anything on it.
+            // Lead-gen spam and automated platform bots (Yelp, Google LSA)
+            // used to get full replies here - and the bots would loop for
+            // 30-40 messages. Blocked messages create no chat and send no
+            // reply; Twilio is satisfied by the empty TwiML below.
+            // Only first messages are triaged: once a real conversation is
+            // running we never re-judge the customer mid-flow.
+            const triage = await shouldRespondToSms(messageBody);
+            if (!triage.respond) {
+                console.log(`[TWILIO SMS] ignored (${triage.source}: ${triage.reason}) from ${from} sid=${messageSid}: "${messageBody.slice(0, 80)}"`);
+                return res.status(200).type('application/xml').send('<Response/>');
+            }
+
             const created = await createChat();
             if (!created.ok) {
                 console.error(`[TWILIO SMS] failed to create Retell chat: ${created.error}`);
@@ -118,7 +135,16 @@ router.post('/', express.urlencoded({ extended: false }), async (req, res) => {
             console.log(`[TWILIO SMS] first raw msg: ${JSON.stringify(completion.rawMessages[0]).substring(0, 300)}`);
         }
 
-        // 4. Push each agent reply back as SMS.
+        // 4. Push each agent reply back as SMS, up to a hard per-conversation
+        // cap. A real intake finishes in 5-8 messages; the Yelp bot loops hit
+        // 40. This bounds the damage from anything the triage misses.
+        const priorReplies = Number(session.reply_count || 0);
+        if (priorReplies >= MAX_REPLIES_PER_SESSION) {
+            console.warn(`[TWILIO SMS] reply cap reached (${priorReplies}) for ${from}; not replying`);
+            db.prepare(`UPDATE sms_chat_sessions SET status = 'capped' WHERE phone = ?`).run(from);
+            return res.status(200).type('application/xml').send('<Response/>');
+        }
+
         for (const reply of completion.replies) {
             const out = await sendSms({ to: from, body: reply });
             if (!out.ok) {
@@ -129,8 +155,8 @@ router.post('/', express.urlencoded({ extended: false }), async (req, res) => {
         }
 
         // 5. Bump last_seen so the session stays fresh for 24h.
-        db.prepare(`UPDATE sms_chat_sessions SET last_seen_at = ? WHERE phone = ?`)
-            .run(new Date().toISOString(), from);
+        db.prepare(`UPDATE sms_chat_sessions SET last_seen_at = ?, reply_count = COALESCE(reply_count, 0) + ? WHERE phone = ?`)
+            .run(new Date().toISOString(), completion.replies.length, from);
 
         return res.status(200).type('application/xml').send('<Response/>');
     } catch (err) {

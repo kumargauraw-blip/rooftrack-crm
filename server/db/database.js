@@ -134,6 +134,13 @@ function ensureSmsChatSessionsTable(db) {
     `);
     try {
         db.exec('CREATE INDEX IF NOT EXISTS idx_sms_chat_retell_chat_id ON sms_chat_sessions(retell_chat_id)');
+        // Counts agent replies in a conversation so a runaway bot loop can be
+        // capped (see MAX_REPLIES_PER_SESSION in routes/twilio-sms.js).
+        const smsCols = db.pragma('table_info(sms_chat_sessions)').map(c => c.name);
+        if (!smsCols.includes('reply_count')) {
+            db.exec('ALTER TABLE sms_chat_sessions ADD COLUMN reply_count INTEGER DEFAULT 0');
+            console.log('Added column sms_chat_sessions.reply_count');
+        }
     } catch (e) { /* may exist */ }
 }
 
