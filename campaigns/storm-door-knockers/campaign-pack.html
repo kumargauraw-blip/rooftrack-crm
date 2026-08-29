@@ -1,0 +1,689 @@
+<title>Don't Sign Anything</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
+
+<style>
+  :root {
+    --ground: #f4f6f9;
+    --surface: #ffffff;
+    --surface-2: #eaeef4;
+    --ink: #16202e;
+    --ink-2: #46566b;
+    --ink-3: #6d7d91;
+    --line: #d7dee7;
+    --line-2: #c3ccd9;
+    --navy: #1e3a5f;
+    --navy-soft: #e7edf5;
+    --alert: #b03328;
+    --alert-soft: #fbeceb;
+    --go: #1f6d4a;
+    --go-soft: #e4f2eb;
+    --amber: #8a5a10;
+    --amber-soft: #fbf1dd;
+    --shadow: 0 1px 2px rgba(22,32,46,.06), 0 8px 24px -12px rgba(22,32,46,.18);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ground: #0e141c;
+      --surface: #161f2a;
+      --surface-2: #1e2836;
+      --ink: #e7edf4;
+      --ink-2: #a9b8c9;
+      --ink-3: #7d8da0;
+      --line: #2a3646;
+      --line-2: #3a4859;
+      --navy: #8fb4e0;
+      --navy-soft: #1c2938;
+      --alert: #ef7d6d;
+      --alert-soft: #2c1c1a;
+      --go: #67c79b;
+      --go-soft: #16281f;
+      --amber: #e0ab5a;
+      --amber-soft: #2a2115;
+      --shadow: 0 1px 2px rgba(0,0,0,.3), 0 8px 24px -12px rgba(0,0,0,.6);
+    }
+  }
+  :root[data-theme="dark"] {
+    --ground: #0e141c;
+    --surface: #161f2a;
+    --surface-2: #1e2836;
+    --ink: #e7edf4;
+    --ink-2: #a9b8c9;
+    --ink-3: #7d8da0;
+    --line: #2a3646;
+    --line-2: #3a4859;
+    --navy: #8fb4e0;
+    --navy-soft: #1c2938;
+    --alert: #ef7d6d;
+    --alert-soft: #2c1c1a;
+    --go: #67c79b;
+    --go-soft: #16281f;
+    --amber: #e0ab5a;
+    --amber-soft: #2a2115;
+    --shadow: 0 1px 2px rgba(0,0,0,.3), 0 8px 24px -12px rgba(0,0,0,.6);
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    background: var(--ground);
+    color: var(--ink);
+    font-family: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+    font-size: 16px;
+    line-height: 1.6;
+    margin: 0;
+    padding: 0 20px 96px;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .wrap { max-width: 1000px; margin: 0 auto; }
+
+  /* ---------- masthead ---------- */
+  .mast {
+    padding: 56px 0 32px;
+    border-bottom: 3px solid var(--ink);
+  }
+  .eyebrow {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 12px;
+    font-weight: 500;
+    letter-spacing: .14em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+    margin: 0 0 18px;
+  }
+  .mast h1 {
+    font-family: Archivo, "Arial Narrow", sans-serif;
+    font-weight: 800;
+    font-size: clamp(2.4rem, 7vw, 4.1rem);
+    line-height: .95;
+    letter-spacing: -.02em;
+    text-wrap: balance;
+    margin: 0 0 20px;
+    text-transform: uppercase;
+  }
+  .mast h1 .quiet { color: var(--ink-3); display: block; font-size: .46em; letter-spacing: .01em; font-weight: 600; margin-top: 14px; text-transform: none; line-height: 1.3; }
+  .mast p { color: var(--ink-2); max-width: 62ch; margin: 0; font-size: 17px; }
+
+  .facts { display: flex; flex-wrap: wrap; gap: 0; margin-top: 32px; border: 1px solid var(--line); background: var(--surface); }
+  .fact { flex: 1 1 150px; padding: 14px 18px; border-right: 1px solid var(--line); }
+  .fact:last-child { border-right: 0; }
+  .fact dt { font-family: "IBM Plex Mono", monospace; font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--ink-3); margin: 0 0 4px; }
+  .fact dd { margin: 0; font-family: Archivo, sans-serif; font-weight: 700; font-size: 22px; font-variant-numeric: tabular-nums; }
+  .fact dd small { font-weight: 500; font-size: 13px; color: var(--ink-2); font-family: "IBM Plex Sans", sans-serif; }
+
+  /* ---------- sections ---------- */
+  .sec { padding-top: 64px; }
+  .sec-head { display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; margin-bottom: 8px; }
+  .sec-head h2 {
+    font-family: Archivo, sans-serif; font-weight: 700; text-transform: uppercase;
+    font-size: clamp(1.35rem, 3vw, 1.8rem); letter-spacing: -.01em; margin: 0;
+  }
+  .sec-note { color: var(--ink-2); max-width: 68ch; margin: 0 0 28px; }
+
+  /* ---------- gate list ---------- */
+  .gates { display: flex; flex-direction: column; gap: 12px; }
+  .gate {
+    display: grid; grid-template-columns: auto 1fr; gap: 16px;
+    background: var(--surface); border: 1px solid var(--line);
+    border-left: 4px solid var(--line-2); padding: 18px 20px; box-shadow: var(--shadow);
+  }
+  .gate.stop { border-left-color: var(--alert); }
+  .gate.check { border-left-color: var(--amber); }
+  .gate-box {
+    width: 20px; height: 20px; margin-top: 3px; flex: none;
+    border: 2px solid var(--line-2); background: transparent; cursor: pointer;
+    display: grid; place-items: center; padding: 0; color: var(--go);
+  }
+  .gate-box svg { width: 14px; height: 14px; opacity: 0; transition: opacity .12s; }
+  .gate-box[aria-pressed="true"] { border-color: var(--go); background: var(--go-soft); }
+  .gate-box[aria-pressed="true"] svg { opacity: 1; }
+  .gate-box:focus-visible { outline: 2px solid var(--navy); outline-offset: 2px; }
+  .gate[data-done="true"] .gate-body { opacity: .5; }
+  .gate[data-done="true"] .gate-title { text-decoration: line-through; }
+  .gate-title { font-weight: 700; margin: 0 0 4px; display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; }
+  .tag {
+    font-family: "IBM Plex Mono", monospace; font-size: 10px; font-weight: 600;
+    letter-spacing: .1em; text-transform: uppercase; padding: 3px 7px; white-space: nowrap;
+  }
+  .tag.stop { background: var(--alert-soft); color: var(--alert); }
+  .tag.check { background: var(--amber-soft); color: var(--amber); }
+  .gate-body p { margin: 0; color: var(--ink-2); font-size: 15px; }
+  .gate-body code { font-family: "IBM Plex Mono", monospace; font-size: .88em; background: var(--surface-2); padding: 1px 5px; }
+
+  /* ---------- asset block ---------- */
+  .asset { background: var(--surface); border: 1px solid var(--line); margin-bottom: 20px; box-shadow: var(--shadow); }
+  .asset-bar {
+    display: flex; align-items: center; justify-content: space-between; gap: 16px;
+    padding: 11px 16px; border-bottom: 1px solid var(--line); background: var(--surface-2);
+  }
+  .asset-name {
+    font-family: "IBM Plex Mono", monospace; font-size: 11px; font-weight: 600;
+    letter-spacing: .11em; text-transform: uppercase; color: var(--ink-2);
+  }
+  .copy {
+    font-family: "IBM Plex Sans", sans-serif; font-size: 12px; font-weight: 600;
+    letter-spacing: .04em; text-transform: uppercase;
+    background: var(--ink); color: var(--ground); border: 0; padding: 7px 14px; cursor: pointer;
+    white-space: nowrap; transition: background .12s;
+  }
+  .copy:hover { background: var(--navy); }
+  .copy:focus-visible { outline: 2px solid var(--navy); outline-offset: 2px; }
+  .copy[data-state="done"] { background: var(--go); color: #fff; }
+  .asset-body { padding: 20px 22px; }
+  .asset-body > :first-child { margin-top: 0; }
+  .asset-body > :last-child { margin-bottom: 0; }
+  .asset-body p { margin: 0 0 14px; max-width: 66ch; }
+  .asset-body strong { font-weight: 700; }
+
+  pre.plain {
+    margin: 0; padding: 20px 22px; overflow-x: auto;
+    font-family: "IBM Plex Mono", monospace; font-size: 13px; line-height: 1.65;
+    white-space: pre-wrap; word-break: break-word; color: var(--ink-2);
+  }
+
+  .subjects { display: flex; flex-direction: column; gap: 0; }
+  .subj { display: flex; align-items: center; gap: 14px; padding: 13px 22px; border-bottom: 1px solid var(--line); }
+  .subj:last-child { border-bottom: 0; }
+  .subj-pick { font-family: "IBM Plex Mono", monospace; font-size: 10px; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; color: var(--go); background: var(--go-soft); padding: 3px 7px; white-space: nowrap; }
+  .subj-alt { font-family: "IBM Plex Mono", monospace; font-size: 10px; letter-spacing: .1em; text-transform: uppercase; color: var(--ink-3); padding: 3px 7px; white-space: nowrap; }
+  .subj-txt { flex: 1; font-weight: 500; }
+  .subj .copy { padding: 5px 11px; }
+
+  /* ---------- mail preview ---------- */
+  .mail-frame { background: var(--surface-2); padding: 28px 16px; border-bottom: 1px solid var(--line); }
+  .mail-meta {
+    max-width: 600px; margin: 0 auto 14px; font-family: "IBM Plex Mono", monospace;
+    font-size: 11px; color: var(--ink-3); line-height: 1.9;
+  }
+  .mail-meta b { color: var(--ink-2); font-weight: 600; }
+  .mail-sheet { max-width: 600px; margin: 0 auto; background: #ffffff; box-shadow: 0 4px 20px -6px rgba(0,0,0,.28); }
+  .var { background: #fff3c4; color: #6b4c00; padding: 0 4px; border-radius: 2px; font-weight: 600; }
+
+  /* ---------- sequence ---------- */
+  ol.seq { list-style: none; counter-reset: s; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 2px; }
+  ol.seq > li {
+    counter-increment: s; display: grid; grid-template-columns: 52px 1fr; gap: 18px;
+    background: var(--surface); border: 1px solid var(--line); padding: 18px 20px; align-items: start;
+  }
+  ol.seq > li::before {
+    content: counter(s); font-family: Archivo, sans-serif; font-weight: 800; font-size: 30px;
+    line-height: 1; color: var(--navy); font-variant-numeric: tabular-nums;
+  }
+  ol.seq h3 { margin: 0 0 4px; font-size: 16px; font-weight: 700; }
+  ol.seq p { margin: 0; color: var(--ink-2); font-size: 15px; max-width: 62ch; }
+
+  .foot { margin-top: 72px; padding-top: 22px; border-top: 1px solid var(--line); color: var(--ink-3); font-size: 13px; }
+  .foot code { font-family: "IBM Plex Mono", monospace; background: var(--surface-2); padding: 1px 5px; }
+
+  .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+  details summary {
+    cursor: pointer; padding: 12px 22px; font-family: "IBM Plex Mono", monospace;
+    font-size: 12px; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-2);
+  }
+  details summary:focus-visible { outline: 2px solid var(--navy); outline-offset: -2px; }
+  details[open] summary { border-bottom: 1px solid var(--line); }
+
+  @media (max-width: 620px) {
+    .fact { flex: 1 1 100%; border-right: 0; border-bottom: 1px solid var(--line); }
+    .fact:last-child { border-bottom: 0; }
+    .subj { flex-wrap: wrap; }
+    ol.seq > li { grid-template-columns: 36px 1fr; gap: 14px; }
+    ol.seq > li::before { font-size: 22px; }
+  }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+
+<div class="wrap">
+
+  <header class="mast">
+    <p class="eyebrow">HonestRoof · Storm response · Past-customer campaign</p>
+    <h1>Don't sign<br>anything
+      <span class="quiet">Email + social pack for the door-knocker wave. Every block below is ready to copy straight into the CRM or your page.</span>
+    </h1>
+    <dl class="facts">
+      <div class="fact"><dt>Audience</dt><dd>466 <small>past customers with a valid email</small></dd></div>
+      <div class="fact"><dt>Filter</dt><dd>status = paid</dd></div>
+      <div class="fact"><dt>Send time</dt><dd>~2 min <small>at 200ms/send</small></dd></div>
+      <div class="fact"><dt>Primary goal</dt><dd>Referrals</dd></div>
+    </dl>
+  </header>
+
+  <section class="sec">
+    <div class="sec-head"><h2>Fix before you send</h2></div>
+    <p class="sec-note">Four of these came out of reading the send path in <code>server/routes/campaigns.js</code> and <code>server/lib/email.js</code>. The first two will bite you.</p>
+
+    <div class="gates">
+
+      <div class="gate stop">
+        <button class="gate-box" aria-pressed="false" aria-label="Mark done"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M3 8.5l3.5 3.5L13 5"/></svg></button>
+        <div class="gate-body">
+          <p class="gate-title"><span class="tag stop">Blocker</span> Which phone number is right?</p>
+          <p>Your concept copy says <strong>817-809-7000</strong>. Every template already in the CRM says <strong>(817) 966-2863</strong>. I used your number throughout, but 466 people are about to get it — confirm it rings, and that whoever answers knows this campaign went out.</p>
+        </div>
+      </div>
+
+      <div class="gate stop">
+        <button class="gate-box" aria-pressed="false" aria-label="Mark done"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M3 8.5l3.5 3.5L13 5"/></svg></button>
+        <div class="gate-body">
+          <p class="gate-title"><span class="tag stop">Blocker</span> Fill in the physical address in the footer</p>
+          <p>Nothing in the send path adds an unsubscribe link or a mailing address — I checked. CAN-SPAM requires both on commercial email, and their absence is also what tips a 466-recipient blast into spam folders. I built a reply-based opt-out and an address line into the template; replace <code>[STREET ADDRESS], [CITY], TX [ZIP]</code> before sending.</p>
+        </div>
+      </div>
+
+      <div class="gate check">
+        <button class="gate-box" aria-pressed="false" aria-label="Mark done"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M3 8.5l3.5 3.5L13 5"/></svg></button>
+        <div class="gate-body">
+          <p class="gate-title"><span class="tag check">Check</span> One record still has no name</p>
+          <p>The greeting renders <code>{{first_name}}</code> verbatim, so the record imported as <code>UNNAMED - see IMG_2144.HEIC</code> would go out as "Hi UNNAMED,". Read the name off that photo, or drop that recipient from the campaign.</p>
+        </div>
+      </div>
+
+      <div class="gate check">
+        <button class="gate-box" aria-pressed="false" aria-label="Mark done"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M3 8.5l3.5 3.5L13 5"/></svg></button>
+        <div class="gate-body">
+          <p class="gate-title"><span class="tag check">Check</span> Is $100 still the referral payout?</p>
+          <p>I carried it over from the referral template already in your CRM. If it's changed, it appears once in the email and once in the plain-text version.</p>
+        </div>
+      </div>
+
+      <div class="gate check">
+        <button class="gate-box" aria-pressed="false" aria-label="Mark done"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M3 8.5l3.5 3.5L13 5"/></svg></button>
+        <div class="gate-body">
+          <p class="gate-title"><span class="tag check">Check</span> Send a test to yourself first, then consider batching</p>
+          <p>Every send BCCs <code>dennis@honestroof.com</code>, so this campaign puts 466 copies in your own inbox — expect that. If the domain hasn't sent bulk mail before, 466 at once can hurt your sender reputation; splitting into two or three sends across a couple of days is safer.</p>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <section class="sec">
+    <div class="sec-head"><h2>The email</h2></div>
+    <p class="sec-note">Written for people who <em>already have</em> one of your roofs. Most of them don't need another one — so the real job here is the referral, and the warning is what earns the right to ask. The protective opening is also the part people forward, which is the whole mechanism.</p>
+
+    <div class="asset">
+      <div class="asset-bar"><span class="asset-name">Subject line</span></div>
+      <div class="subjects">
+        <div class="subj">
+          <span class="subj-pick">Use this</span>
+          <span class="subj-txt">Before you sign anything a roofer hands you</span>
+          <button class="copy" data-src="s1">Copy</button>
+        </div>
+        <div class="subj">
+          <span class="subj-alt">Alt</span>
+          <span class="subj-txt">{{first_name}}, don't sign anything at your door</span>
+          <button class="copy" data-src="s2">Copy</button>
+        </div>
+        <div class="subj">
+          <span class="subj-alt">Alt</span>
+          <span class="subj-txt">About all those roofers knocking on your door</span>
+          <button class="copy" data-src="s3">Copy</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="asset">
+      <div class="asset-bar">
+        <span class="asset-name">Preview — how it lands</span>
+        <button class="copy" data-src="html">Copy HTML</button>
+      </div>
+      <div class="mail-frame">
+        <div class="mail-meta">
+          <b>From:</b> HonestRoof.com &lt;website@honestroof.com&gt;<br>
+          <b>To:</b> Jane Sample &lt;jane.sample@example.com&gt;<br>
+          <b>Subject:</b> Before you sign anything a roofer hands you
+        </div>
+        <div class="mail-sheet">
+          <div style="font-family: Arial, Helvetica, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; color: #222; font-size: 16px; line-height: 1.6;">
+            <p style="margin: 0 0 16px 0;">Hi <span class="var">{{first_name}}</span>,</p>
+            <p style="margin: 0 0 16px 0;">If someone has knocked on your door this week, you're not imagining it. The storms came through, and the door-knockers followed. Some of them are decent. A lot of them are not from around here, and they will be gone by Christmas.</p>
+            <p style="margin: 0 0 16px 0;">I'm not writing to sell you anything. I'm writing because there's one thing that will save you the most grief:</p>
+            <div style="border-left: 5px solid #c0392b; background: #fdf2f0; padding: 16px 20px; margin: 24px 0;">
+              <p style="margin: 0 0 10px 0; font-size: 19px; font-weight: bold; color: #c0392b;">Don't sign anything at your front door.</p>
+              <p style="margin: 0; color: #222;">Not a contract. Not an estimate. And especially not the clipboard form that's "just so we can take a look" or "just to file with your insurance." Those are often contingency agreements or an assignment of your insurance benefits. Sign one and you may have handed that company your roof job before anyone has been up there. Getting back out of it is a fight.</p>
+            </div>
+            <p style="margin: 0 0 16px 0;">You do not have to sign anything to find out whether your roof is damaged.</p>
+            <div style="border: 2px solid #1e3a5f; padding: 20px; margin: 24px 0; text-align: center;">
+              <p style="margin: 0 0 12px 0; font-size: 18px; font-weight: bold; color: #1e3a5f;">Want to know what shape your roof is in?</p>
+              <p style="margin: 0 0 14px 0; font-size: 22px; font-weight: bold; color: #222;">Call or text 817-809-7000</p>
+              <p style="margin: 0; font-size: 15px; color: #222;">100% free &nbsp;·&nbsp; No signature &nbsp;·&nbsp; No contract &nbsp;·&nbsp; No clipboard<br>We'll tell you the truth — including "your roof is fine," if that's the answer.</p>
+            </div>
+            <p style="margin: 0 0 16px 0;">And if it's a roof we put on, I especially want to be the one to look at it. It's under warranty and it's my work. I'd rather climb up there myself than have a stranger tell you what he found.</p>
+            <hr style="border: none; border-top: 2px solid #ddd; margin: 32px 0;">
+            <p style="margin: 0 0 12px 0; font-size: 19px; font-weight: bold; color: #1e3a5f;">One favor to ask: your neighbors are getting hit harder than you are.</p>
+            <p style="margin: 0 0 16px 0;">You already know how we work. They don't. They're getting knocked on three times a day by people they've never met, and some of them are going to sign something this week that they'll regret for a year.</p>
+            <div style="background: #f4f7fa; border: 1px solid #ccd6e0; padding: 20px; margin: 20px 0;">
+              <p style="margin: 0 0 12px 0; font-weight: bold; color: #222;">Forward this email to them.</p>
+              <p style="margin: 0 0 12px 0; color: #222;">Or just tell them the two things that matter: <strong>don't sign anything</strong>, and <strong>call or text 817-809-7000</strong> for a free, honest look. Same as you'd get.</p>
+              <p style="margin: 0; color: #222;">Friends, family, the neighbor two doors down with the blue tarp — anyone. We'll treat them the way we treated you.</p>
+            </div>
+            <p style="margin: 0 0 16px 0;">If someone you send our way ends up doing a roof with us, we'll send you <strong>$100</strong>. Just have them mention your name, or reply to this email with theirs. But honestly, keeping a neighbor from signing a bad contract is the part that matters.</p>
+            <p style="margin: 24px 0 0 0;">Thanks for trusting us with your roof in the first place.</p>
+            <p style="margin: 16px 0 0 0;"><strong>Dennis Harrison</strong><br>HonestRoof.com<br>Call or text: <strong>817-809-7000</strong></p>
+            <div style="border-top: 1px solid #ddd; margin-top: 32px; padding-top: 16px; font-size: 12px; color: #777; line-height: 1.5;">
+              <p style="margin: 0 0 8px 0;">You're getting this because HonestRoof has done work at your home. If you'd rather not hear from us again, just reply with "REMOVE" and we'll take you off the list — no hard feelings.</p>
+              <p style="margin: 0;">HonestRoof.com · [STREET ADDRESS], [CITY], TX [ZIP]</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="asset">
+      <div class="asset-bar">
+        <span class="asset-name">The raw HTML — paste into the HTML Content field</span>
+        <button class="copy" data-src="html">Copy HTML</button>
+      </div>
+      <details>
+        <summary>Show the markup</summary>
+        <pre class="plain" id="htmlview"></pre>
+      </details>
+    </div>
+
+    <div class="asset">
+      <div class="asset-bar">
+        <span class="asset-name">Plain-text version — paste into the Text Content field</span>
+        <button class="copy" data-src="text">Copy text</button>
+      </div>
+      <pre class="plain" id="textview"></pre>
+    </div>
+  </section>
+
+  <section class="sec">
+    <div class="sec-head"><h2>Social</h2></div>
+    <p class="sec-note">Same two beats everywhere: <strong>don't sign anything</strong>, then <strong>free honest look, 817-809-7000</strong>. The warning is what gets shared; the offer is what converts. Lead with the warning.</p>
+
+    <div class="asset">
+      <div class="asset-bar">
+        <span class="asset-name">Nextdoor — post here first</span>
+        <button class="copy" data-src="nextdoor">Copy</button>
+      </div>
+      <div class="asset-body">
+        <p>Better platform than Facebook for this exact message: hyper-local, and "who are these roofers" is already the most active thread type on it after a storm. Search your own neighborhood feed for existing threads and reply there too — warmer than a cold post. Nextdoor punishes anything that reads like an ad, so this one is written to stand on its own as a PSA: a neighbor could act on it, never call you, and it still did its job.</p>
+      </div>
+      <pre class="plain" id="ndview"></pre>
+    </div>
+
+    <div class="asset">
+      <div class="asset-bar">
+        <span class="asset-name">Facebook — main organic post</span>
+        <button class="copy" data-src="fb">Copy</button>
+      </div>
+      <pre class="plain" id="fbview"></pre>
+      <div class="asset-body">
+        <p><strong>On the closing line.</strong> An explicit "share this" instruction meaningfully beats hoping people do it unprompted — and here it happens to be true, which is why it doesn't read as a growth hack.</p>
+      </div>
+    </div>
+
+    <div class="asset">
+      <div class="asset-bar">
+        <span class="asset-name">Boosted / paid — short version</span>
+        <button class="copy" data-src="ad">Copy</button>
+      </div>
+      <pre class="plain" id="adview"></pre>
+      <div class="asset-body">
+        <p><strong>Targeting:</strong> homeowners, 10–15 miles around the hardest-hit ZIPs. Your customer base concentrates in Arlington, Fort Worth, Grand Prairie and Mansfield — weight toward wherever the storm actually tracked.</p>
+        <p><strong>Suppression:</strong> exclude existing customers from paid targeting. They're getting the email; paying to reach them twice burns budget.</p>
+      </div>
+    </div>
+
+    <div class="asset">
+      <div class="asset-bar">
+        <span class="asset-name">Yard sign / truck magnet / graphic</span>
+        <button class="copy" data-src="sign">Copy</button>
+      </div>
+      <pre class="plain" id="signview"></pre>
+      <div class="asset-body">
+        <p>Your original line, barely touched — the caps and the bluntness <em>are</em> the brand. Set <strong>DON'T SIGN ANYTHING</strong> as the largest element: it's the line that stops someone, and the only one that has to be readable from a moving car.</p>
+      </div>
+    </div>
+
+    <div class="asset">
+      <div class="asset-bar">
+        <span class="asset-name">SMS — optional, opt-in only</span>
+        <button class="copy" data-src="sms">Copy</button>
+      </div>
+      <pre class="plain" id="smsview"></pre>
+      <div class="asset-body">
+        <p>Only to customers who have texted you before or explicitly opted in. Cold bulk SMS carries real TCPA exposure in a way email does not — this is the one channel where the downside is a lawsuit rather than a spam folder.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="sec">
+    <div class="sec-head"><h2>Order to run it in</h2></div>
+    <p class="sec-note">The door-knocking is happening right now. This message has a shelf life of about two weeks.</p>
+    <ol class="seq">
+      <li><div><h3>Nextdoor and Facebook, today</h3><p>Organic posts cost nothing and reach the people currently standing at their door with a clipboard in their face.</p></div></li>
+      <li><div><h3>Email to past customers, same day or next</h3><p>After the two blockers above are cleared. Test send to yourself first.</p></div></li>
+      <li><div><h3>Boost whichever organic post got traction</h3><p>Boost the winner rather than guessing which message lands — you'll know within a day.</p></div></li>
+      <li><div><h3>Re-share the Facebook post around day five</h3><p>Storm-chaser fatigue peaks <em>after</em> the first wave, when people are worn down and likelier to cave and sign.</p></div></li>
+    </ol>
+  </section>
+
+  <p class="foot">
+    Source files live in <code>rooftrack-crm/campaigns/storm-door-knockers/</code> — <code>email.html</code>, <code>email.txt</code>, <code>social.md</code>.
+    In the CRM: Campaigns → New → type <em>Custom</em>, paste subject, HTML and text, then add recipients with the <em>status</em> filter set to <code>paid</code>.
+  </p>
+</div>
+
+<textarea class="sr" id="src-s1" readonly>Before you sign anything a roofer hands you</textarea>
+<textarea class="sr" id="src-s2" readonly>{{first_name}}, don't sign anything at your door</textarea>
+<textarea class="sr" id="src-s3" readonly>About all those roofers knocking on your door</textarea>
+
+<script type="text/plain" id="src-text">Hi {{first_name}},
+
+If someone has knocked on your door this week, you're not imagining it. The storms came through, and the door-knockers followed. Some of them are decent. A lot of them are not from around here, and they will be gone by Christmas.
+
+I'm not writing to sell you anything. I'm writing because there's one thing that will save you the most grief:
+
+*** DON'T SIGN ANYTHING AT YOUR FRONT DOOR. ***
+
+Not a contract. Not an estimate. And especially not the clipboard form that's "just so we can take a look" or "just to file with your insurance." Those are often contingency agreements or an assignment of your insurance benefits. Sign one and you may have handed that company your roof job before anyone has been up there. Getting back out of it is a fight.
+
+You do not have to sign anything to find out whether your roof is damaged.
+
+WANT TO KNOW WHAT SHAPE YOUR ROOF IS IN?
+Call or text 817-809-7000
+
+- 100% free
+- No signature. No contract. No clipboard.
+- We'll tell you the truth, including "your roof is fine," if that's the answer.
+
+And if it's a roof we put on, I especially want to be the one to look at it. It's under warranty and it's my work. I'd rather climb up there myself than have a stranger tell you what he found.
+
+------------------------------------------------------------
+
+ONE FAVOR TO ASK: YOUR NEIGHBORS ARE GETTING HIT HARDER THAN YOU ARE.
+
+You already know how we work. They don't. They're getting knocked on three times a day by people they've never met, and some of them are going to sign something this week that they'll regret for a year.
+
+Forward this email to them.
+
+Or just tell them the two things that matter: don't sign anything, and call or text 817-809-7000 for a free, honest look. Same as you'd get.
+
+Friends, family, the neighbor two doors down with the blue tarp - anyone. We'll treat them the way we treated you.
+
+If someone you send our way ends up doing a roof with us, we'll send you $100. Just have them mention your name, or reply to this email with theirs. But honestly, keeping a neighbor from signing a bad contract is the part that matters.
+
+Thanks for trusting us with your roof in the first place.
+
+Dennis Harrison
+HonestRoof.com
+Call or text: 817-809-7000
+
+------------------------------------------------------------
+You're getting this because HonestRoof has done work at your home. If you'd rather not hear from us again, just reply with "REMOVE" and we'll take you off the list - no hard feelings.
+
+HonestRoof.com | [STREET ADDRESS], [CITY], TX [ZIP]</script>
+
+<script type="text/plain" id="src-nextdoor">Anyone else getting hammered by roofing door-knockers this week?
+
+Since the storm we've had a lot of neighbors call us rattled about it, so - quick PSA, and I'm not trying to drum up work with this part:
+
+Don't sign anything handed to you at your door. Not even the "this is just so we can inspect it" form. A lot of those are contingency agreements or an assignment of your insurance benefits, and signing one can lock you into that company before anyone has looked at your roof.
+
+Ask for the company's Texas address. Ask who'll be here in two years for the warranty. If they push you to sign right now, that's your answer.
+
+If you do want to know whether you actually have damage, we'll come look for free - no signature, no contract, no obligation. Call or text 817-809-7000. And if your roof is fine, we'll tell you that, and leave.
+
+- Dennis, HonestRoof.com</script>
+
+<script type="text/plain" id="src-fb">ROOFERS DRIVING YOU NUTS?
+
+If you've had three knocks on your door this week, you're not alone. The storm came through and so did every out-of-town crew with a clipboard.
+
+Here's the only advice that matters, and it's free:
+
+DON'T SIGN ANYTHING AT YOUR DOOR.
+
+Not a contract. Not an estimate. Especially not the form that's "just so we can take a look" or "just to file with your insurance." Those are often contingency agreements or an assignment of your insurance benefits - sign one and you may have handed that company your roof before anyone's been up there. Getting back out of it is a fight.
+
+You don't have to sign a thing to find out if your roof is damaged.
+
+WANT AN HONEST INSPECTION? CALL OR TEXT 817-809-7000.
+100% free. No signatures. No contract. No pressure.
+We'll tell you the truth - including "your roof is fine," if that's the answer.
+
+We're local. We've been here. We'll be here after these guys are gone.
+
+HonestRoof.com
+
+Share this with a neighbor. Somebody on your street is about to sign something they'll regret.</script>
+
+<script type="text/plain" id="src-ad">DON'T SIGN ANYTHING A DOOR-KNOCKER HANDS YOU.
+
+Want an honest look at your roof instead? 100% free, no signature, no contract. We'll tell you the truth.
+
+Call or text 817-809-7000
+HonestRoof.com</script>
+
+<script type="text/plain" id="src-sign">ROOFERS DRIVING YOU NUTS!
+
+DON'T SIGN ANYTHING!!
+
+WANT AN HONEST INSPECTION?
+CALL OR TEXT 817-809-7000
+
+100% FREE - NO SIGNATURES REQUIRED
+WE WILL TELL YOU THE TRUTH
+
+HONESTROOF.COM</script>
+
+<script type="text/plain" id="src-sms">Dennis at HonestRoof. Lot of door-knockers out since the storm - don't sign anything they hand you, even the "just to inspect" form. Want a free honest look at your roof? Call or text 817-809-7000. Reply STOP to opt out.</script>
+
+<script type="text/plain" id="src-html"><div style="font-family: Arial, Helvetica, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; color: #222; font-size: 16px; line-height: 1.6;">
+
+<p style="margin: 0 0 16px 0;">Hi {{first_name}},</p>
+
+<p style="margin: 0 0 16px 0;">If someone has knocked on your door this week, you're not imagining it. The storms came through, and the door-knockers followed. Some of them are decent. A lot of them are not from around here, and they will be gone by Christmas.</p>
+
+<p style="margin: 0 0 16px 0;">I'm not writing to sell you anything. I'm writing because there's one thing that will save you the most grief:</p>
+
+<div style="border-left: 5px solid #c0392b; background: #fdf2f0; padding: 16px 20px; margin: 24px 0;">
+<p style="margin: 0 0 10px 0; font-size: 19px; font-weight: bold; color: #c0392b;">Don't sign anything at your front door.</p>
+<p style="margin: 0;">Not a contract. Not an estimate. And especially not the clipboard form that's "just so we can take a look" or "just to file with your insurance." Those are often contingency agreements or an assignment of your insurance benefits. Sign one and you may have handed that company your roof job before anyone has been up there. Getting back out of it is a fight.</p>
+</div>
+
+<p style="margin: 0 0 16px 0;">You do not have to sign anything to find out whether your roof is damaged.</p>
+
+<div style="border: 2px solid #1e3a5f; padding: 20px; margin: 24px 0; text-align: center;">
+<p style="margin: 0 0 12px 0; font-size: 18px; font-weight: bold; color: #1e3a5f;">Want to know what shape your roof is in?</p>
+<p style="margin: 0 0 14px 0; font-size: 22px; font-weight: bold;">Call or text 817-809-7000</p>
+<p style="margin: 0; font-size: 15px;">100% free &nbsp;&middot;&nbsp; No signature &nbsp;&middot;&nbsp; No contract &nbsp;&middot;&nbsp; No clipboard<br/>
+We'll tell you the truth &mdash; including "your roof is fine," if that's the answer.</p>
+</div>
+
+<p style="margin: 0 0 16px 0;">And if it's a roof we put on, I especially want to be the one to look at it. It's under warranty and it's my work. I'd rather climb up there myself than have a stranger tell you what he found.</p>
+
+<hr style="border: none; border-top: 2px solid #ddd; margin: 32px 0;"/>
+
+<p style="margin: 0 0 12px 0; font-size: 19px; font-weight: bold; color: #1e3a5f;">One favor to ask: your neighbors are getting hit harder than you are.</p>
+
+<p style="margin: 0 0 16px 0;">You already know how we work. They don't. They're getting knocked on three times a day by people they've never met, and some of them are going to sign something this week that they'll regret for a year.</p>
+
+<div style="background: #f4f7fa; border: 1px solid #ccd6e0; padding: 20px; margin: 20px 0;">
+<p style="margin: 0 0 12px 0; font-weight: bold;">Forward this email to them.</p>
+<p style="margin: 0 0 12px 0;">Or just tell them the two things that matter: <strong>don't sign anything</strong>, and <strong>call or text 817-809-7000</strong> for a free, honest look. Same as you'd get.</p>
+<p style="margin: 0;">Friends, family, the neighbor two doors down with the blue tarp &mdash; anyone. We'll treat them the way we treated you.</p>
+</div>
+
+<p style="margin: 0 0 16px 0;">If someone you send our way ends up doing a roof with us, we'll send you <strong>$100</strong>. Just have them mention your name, or reply to this email with theirs. But honestly, keeping a neighbor from signing a bad contract is the part that matters.</p>
+
+<p style="margin: 24px 0 0 0;">Thanks for trusting us with your roof in the first place.</p>
+
+<p style="margin: 16px 0 0 0;">
+<strong>Dennis Harrison</strong><br/>
+HonestRoof.com<br/>
+Call or text: <strong>817-809-7000</strong>
+</p>
+
+<div style="border-top: 1px solid #ddd; margin-top: 32px; padding-top: 16px; font-size: 12px; color: #777; line-height: 1.5;">
+<p style="margin: 0 0 8px 0;">You're getting this because HonestRoof has done work at your home. If you'd rather not hear from us again, just reply with "REMOVE" and we'll take you off the list &mdash; no hard feelings.</p>
+<p style="margin: 0;">HonestRoof.com &middot; [STREET ADDRESS], [CITY], TX [ZIP]</p>
+</div>
+
+</div></script>
+
+<script>
+(function () {
+  var get = function (key) {
+    var el = document.getElementById('src-' + key);
+    if (!el) return '';
+    return el.tagName === 'TEXTAREA' ? el.value : el.textContent;
+  };
+
+  // Mirror the plain-text sources into their visible panes.
+  [['text','textview'],['nextdoor','ndview'],['fb','fbview'],['ad','adview'],
+   ['sign','signview'],['sms','smsview'],['html','htmlview']]
+    .forEach(function (pair) {
+      var pane = document.getElementById(pair[1]);
+      if (pane) pane.textContent = get(pair[0]);
+    });
+
+  function fallbackCopy(text) {
+    var ta = document.createElement('textarea');
+    ta.value = text;
+    ta.setAttribute('readonly', '');
+    ta.style.cssText = 'position:fixed;top:0;left:0;opacity:0;';
+    document.body.appendChild(ta);
+    ta.select();
+    var ok = false;
+    try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+    document.body.removeChild(ta);
+    return ok;
+  }
+
+  document.querySelectorAll('.copy').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var text = get(btn.getAttribute('data-src'));
+      var label = btn.textContent;
+      var done = function (ok) {
+        btn.textContent = ok ? 'Copied' : 'Press Ctrl+C';
+        btn.setAttribute('data-state', ok ? 'done' : '');
+        setTimeout(function () {
+          btn.textContent = label;
+          btn.removeAttribute('data-state');
+        }, 1600);
+      };
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(function () { done(true); },
+                                                 function () { done(fallbackCopy(text)); });
+      } else {
+        done(fallbackCopy(text));
+      }
+    });
+  });
+
+  document.querySelectorAll('.gate-box').forEach(function (box) {
+    box.addEventListener('click', function () {
+      var on = box.getAttribute('aria-pressed') === 'true';
+      box.setAttribute('aria-pressed', on ? 'false' : 'true');
+      box.closest('.gate').setAttribute('data-done', on ? 'false' : 'true');
+    });
+  });
+})();
+</script>

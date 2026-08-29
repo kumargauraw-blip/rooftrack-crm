@@ -9,7 +9,8 @@ import {
     useSendCampaign,
     useAddCampaignRecipients,
     useRecipientPreview,
-    useCloneCampaign
+    useCloneCampaign,
+    useTestSendCampaign
 } from '../hooks/useCampaigns';
 import AutoresponderPanel from '../components/AutoresponderPanel';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
@@ -79,6 +80,12 @@ const STATUS_COLORS = {
 };
 
 const PIPELINE_STATUSES = ['new', 'contacted', 'quoted', 'accepted', 'scheduled', 'completed', 'paid', 'review_received'];
+
+// Leads parked in this city are throwaway test recipients, created by
+// server/make-test-leads.js. Keep this string in sync with TEST_CITY there.
+// The "Test users" option below is just the city filter pinned to this value,
+// so nobody has to remember to type it.
+const TEST_CITY = 'ZZ-TEST';
 
 // --- Create Campaign Form ---
 function CreateCampaignForm({ onClose, onCreated, prefill }) {
@@ -172,16 +179,24 @@ function CreateCampaignForm({ onClose, onCreated, prefill }) {
 
 // --- Add Recipients Modal ---
 function AddRecipientsModal({ campaignId, onClose }) {
-    const [filter, setFilter] = useState('all');
+    // `mode` is the UI choice; 'test' is not a real backend filter, it's the
+    // city filter pinned to TEST_CITY. Everything below sends the derived
+    // filter/city, so the API is unchanged.
+    const [mode, setMode] = useState('all');
     const [statusValue, setStatusValue] = useState('completed');
     const [cityValue, setCityValue] = useState('');
     const [addedResult, setAddedResult] = useState(null);
     const { mutate: addRecipients, isPending } = useAddCampaignRecipients();
-    const { data: preview, isLoading: previewLoading } = useRecipientPreview(campaignId, filter, statusValue, cityValue);
+
+    const isTest = mode === 'test';
+    const filter = isTest ? 'city' : mode;
+    const city = isTest ? TEST_CITY : cityValue;
+
+    const { data: preview, isLoading: previewLoading } = useRecipientPreview(campaignId, filter, statusValue, city);
 
     const handleAdd = () => {
         addRecipients(
-            { campaignId, filter, statusValue, cityValue },
+            { campaignId, filter, statusValue, cityValue: city },
             { onSuccess: (data) => setAddedResult(data) }
         );
     };
@@ -211,21 +226,28 @@ function AddRecipientsModal({ campaignId, onClose }) {
                                 <label className="block text-sm font-medium mb-2">Filter by</label>
                                 <div className="space-y-2">
                                     <label className="flex items-center gap-3 p-3 border rounded-lg cursor-pointer hover:bg-accent transition-colors">
-                                        <input type="radio" name="filter" value="all" checked={filter === 'all'} onChange={e => setFilter(e.target.value)} className="accent-primary" />
+                                        <input type="radio" name="filter" value="test" checked={mode === 'test'} onChange={e => setMode(e.target.value)} className="accent-primary" />
+                                        <div>
+                                            <p className="text-sm font-medium">Test users only</p>
+                                            <p className="text-xs text-muted-foreground">Safe rehearsal &mdash; your test addresses, nobody else</p>
+                                        </div>
+                                    </label>
+                                    <label className="flex items-center gap-3 p-3 border rounded-lg cursor-pointer hover:bg-accent transition-colors">
+                                        <input type="radio" name="filter" value="all" checked={mode === 'all'} onChange={e => setMode(e.target.value)} className="accent-primary" />
                                         <div>
                                             <p className="text-sm font-medium">All customers</p>
                                             <p className="text-xs text-muted-foreground">Every lead with an email address</p>
                                         </div>
                                     </label>
                                     <label className="flex items-center gap-3 p-3 border rounded-lg cursor-pointer hover:bg-accent transition-colors">
-                                        <input type="radio" name="filter" value="status" checked={filter === 'status'} onChange={e => setFilter(e.target.value)} className="accent-primary" />
+                                        <input type="radio" name="filter" value="status" checked={mode === 'status'} onChange={e => setMode(e.target.value)} className="accent-primary" />
                                         <div>
                                             <p className="text-sm font-medium">By status</p>
                                             <p className="text-xs text-muted-foreground">Filter by pipeline stage</p>
                                         </div>
                                     </label>
                                     <label className="flex items-center gap-3 p-3 border rounded-lg cursor-pointer hover:bg-accent transition-colors">
-                                        <input type="radio" name="filter" value="city" checked={filter === 'city'} onChange={e => setFilter(e.target.value)} className="accent-primary" />
+                                        <input type="radio" name="filter" value="city" checked={mode === 'city'} onChange={e => setMode(e.target.value)} className="accent-primary" />
                                         <div>
                                             <p className="text-sm font-medium">By city</p>
                                             <p className="text-xs text-muted-foreground">Target a specific area</p>
@@ -234,7 +256,21 @@ function AddRecipientsModal({ campaignId, onClose }) {
                                 </div>
                             </div>
 
-                            {filter === 'status' && (
+                            {isTest && (
+                                <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-900">
+                                    Adds only leads in the <strong>{TEST_CITY}</strong> city bucket. Send this
+                                    campaign to rehearse the real thing end to end &mdash; recipient rows,
+                                    delivery, the BCC and per-recipient results &mdash; without touching a customer.
+                                    {preview && !previewLoading && preview.matching === 0 && (
+                                        <span className="block mt-2">
+                                            No test users exist yet. Create them on the server with{' '}
+                                            <code className="bg-blue-100 px-1 rounded">node server/make-test-leads.js --add "Your Name &lt;you@example.com&gt;"</code>
+                                        </span>
+                                    )}
+                                </div>
+                            )}
+
+                            {mode === 'status' && (
                                 <div>
                                     <label className="block text-sm font-medium mb-1">Status</label>
                                     <select
@@ -249,7 +285,7 @@ function AddRecipientsModal({ campaignId, onClose }) {
                                 </div>
                             )}
 
-                            {filter === 'city' && (
+                            {mode === 'city' && (
                                 <div>
                                     <label className="block text-sm font-medium mb-1">City</label>
                                     <Input value={cityValue} onChange={e => setCityValue(e.target.value)} placeholder="e.g. Irving" />
@@ -341,15 +377,140 @@ function SendConfirmDialog({ recipientCount, onConfirm, onCancel, isPending }) {
     );
 }
 
+// --- Clone Dialog ---
+// Naming the copy up front is the whole point: a clone you have to rename
+// afterwards is barely faster than starting over.
+function CloneDialog({ campaign, onClone, onCancel, isPending }) {
+    const base = (campaign.name || '').replace(/\s*\(Copy(?:\s+\d+)?\)$/i, '');
+    const [name, setName] = useState(`${base} (Copy)`);
+    const [copyRecipients, setCopyRecipients] = useState(false);
+    const sourceCount = campaign.recipients?.length || 0;
+
+    return (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={onCancel}>
+            <Card className="w-full max-w-md" onClick={e => e.stopPropagation()}>
+                <CardHeader><CardTitle className="text-lg">Clone campaign</CardTitle></CardHeader>
+                <CardContent className="space-y-4">
+                    <p className="text-sm text-muted-foreground">
+                        Copies the subject, HTML and text into a new draft. The copy starts with
+                        no sent history, so you can re-target and send it independently.
+                    </p>
+                    <div className="space-y-1">
+                        <label className="text-sm font-medium" htmlFor="clone-name">New campaign name</label>
+                        <Input
+                            id="clone-name"
+                            value={name}
+                            onChange={e => setName(e.target.value)}
+                            placeholder="e.g. Storm blast — October"
+                            autoFocus
+                        />
+                    </div>
+                    {sourceCount > 0 && (
+                        <label className="flex items-start gap-2 text-sm cursor-pointer">
+                            <input
+                                type="checkbox"
+                                checked={copyRecipients}
+                                onChange={e => setCopyRecipients(e.target.checked)}
+                                className="accent-primary mt-1"
+                            />
+                            <span>
+                                Also copy the {sourceCount} recipient{sourceCount !== 1 ? 's' : ''} from this campaign
+                                <span className="block text-muted-foreground text-xs">
+                                    Leave off to pick a fresh audience with the recipient filters.
+                                </span>
+                            </span>
+                        </label>
+                    )}
+                    <div className="flex gap-2 justify-end">
+                        <Button variant="ghost" onClick={onCancel}>Cancel</Button>
+                        <Button
+                            onClick={() => onClone({ name: name.trim(), copyRecipients })}
+                            disabled={isPending || !name.trim()}
+                        >
+                            {isPending ? 'Cloning...' : 'Create copy'}
+                        </Button>
+                    </div>
+                </CardContent>
+            </Card>
+        </div>
+    );
+}
+
+// --- Test Send Dialog ---
+// Sends one copy to a single address without touching the campaign's status
+// or recipient list, so the campaign stays a draft and can still be sent for real.
+function TestSendDialog({ onSend, onCancel, isPending, result, error }) {
+    const [email, setEmail] = useState('');
+    const [name, setName] = useState('');
+
+    return (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={onCancel}>
+            <Card className="w-full max-w-md" onClick={e => e.stopPropagation()}>
+                <CardHeader><CardTitle className="text-lg">Send a test</CardTitle></CardHeader>
+                <CardContent className="space-y-4">
+                    <p className="text-sm text-muted-foreground">
+                        Sends one email to the address below, subject prefixed with <strong>[TEST]</strong>.
+                        Nothing is written to the recipient list and the campaign stays a draft.
+                    </p>
+                    <div className="space-y-1">
+                        <label className="text-sm font-medium" htmlFor="test-email">Send to</label>
+                        <Input
+                            id="test-email"
+                            type="email"
+                            value={email}
+                            onChange={e => setEmail(e.target.value)}
+                            placeholder="you@example.com"
+                            autoFocus
+                        />
+                    </div>
+                    <div className="space-y-1">
+                        <label className="text-sm font-medium" htmlFor="test-name">Name to greet (optional)</label>
+                        <Input
+                            id="test-name"
+                            value={name}
+                            onChange={e => setName(e.target.value)}
+                            placeholder="e.g. Jane Sample"
+                        />
+                        <p className="text-xs text-muted-foreground">
+                            Fills {'{{first_name}}'} so you can check how the greeting reads.
+                        </p>
+                    </div>
+                    {result && <p className="text-sm text-green-600">Test sent to {email}.</p>}
+                    {error && (
+                        <p className="text-sm text-red-600">
+                            {error?.response?.data?.error || error.message || 'Send failed.'}
+                        </p>
+                    )}
+                    <div className="flex gap-2 justify-end">
+                        <Button variant="ghost" onClick={onCancel}>Close</Button>
+                        <Button
+                            onClick={() => onSend({ to_email: email.trim(), to_name: name.trim() || undefined })}
+                            disabled={isPending || !email.trim()}
+                        >
+                            {isPending ? 'Sending...' : 'Send test'}
+                        </Button>
+                    </div>
+                </CardContent>
+            </Card>
+        </div>
+    );
+}
+
 // --- Campaign Detail View ---
 function CampaignDetail({ id }) {
     const navigate = useNavigate();
     const { data: campaign, isLoading } = useCampaign(id);
     const { mutate: sendCampaign, isPending: isSending } = useSendCampaign();
     const { mutate: cloneCampaign, isPending: isCloning } = useCloneCampaign();
+    const {
+        mutate: testSend, isPending: isTesting,
+        data: testResult, error: testError, reset: resetTest,
+    } = useTestSendCampaign();
     const [showRecipientModal, setShowRecipientModal] = useState(false);
     const [showPreview, setShowPreview] = useState(false);
     const [showSendConfirm, setShowSendConfirm] = useState(false);
+    const [showClone, setShowClone] = useState(false);
+    const [showTestSend, setShowTestSend] = useState(false);
 
     // Autoresponders aren't "one-shot campaigns" — they fire per-lead. The
     // generic recipients/send UI below makes no sense for them. Bounce to
@@ -375,10 +536,18 @@ function CampaignDetail({ id }) {
         });
     };
 
-    const handleClone = () => {
-        cloneCampaign(id, {
-            onSuccess: (cloned) => navigate(`/campaigns/${cloned.id}`)
+    const handleClone = ({ name, copyRecipients }) => {
+        cloneCampaign({ campaignId: id, name, copyRecipients }, {
+            onSuccess: (cloned) => {
+                setShowClone(false);
+                navigate(`/campaigns/${cloned.id}`);
+            }
         });
+    };
+
+    const closeTestSend = () => {
+        resetTest();
+        setShowTestSend(false);
     };
 
     const recipientStatusIcon = (status) => {
@@ -445,12 +614,15 @@ function CampaignDetail({ id }) {
                 <Button variant="outline" onClick={() => setShowPreview(true)}>
                     <Eye className="h-4 w-4 mr-2" /> Preview Email
                 </Button>
+                <Button variant="outline" onClick={() => setShowTestSend(true)}>
+                    <Mail className="h-4 w-4 mr-2" /> Send Test
+                </Button>
                 {isDraft && recipientCount > 0 && (
                     <Button variant="destructive" onClick={() => setShowSendConfirm(true)}>
                         <Send className="h-4 w-4 mr-2" /> Send Campaign
                     </Button>
                 )}
-                <Button variant="outline" onClick={handleClone} disabled={isCloning}>
+                <Button variant="outline" onClick={() => setShowClone(true)} disabled={isCloning}>
                     <Copy className="h-4 w-4 mr-2" /> {isCloning ? 'Cloning...' : 'Clone'}
                 </Button>
             </div>
@@ -491,6 +663,23 @@ function CampaignDetail({ id }) {
             )}
             {showPreview && (
                 <PreviewModal campaign={campaign} onClose={() => setShowPreview(false)} />
+            )}
+            {showClone && (
+                <CloneDialog
+                    campaign={campaign}
+                    onClone={handleClone}
+                    onCancel={() => setShowClone(false)}
+                    isPending={isCloning}
+                />
+            )}
+            {showTestSend && (
+                <TestSendDialog
+                    onSend={(payload) => testSend({ campaignId: id, ...payload })}
+                    onCancel={closeTestSend}
+                    isPending={isTesting}
+                    result={testResult}
+                    error={testError}
+                />
             )}
             {showSendConfirm && (
                 <SendConfirmDialog

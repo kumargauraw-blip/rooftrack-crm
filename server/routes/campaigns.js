@@ -341,6 +341,13 @@ router.get('/:id/recipients/preview', authenticate, (req, res) => {
 });
 
 // POST /api/campaigns/:id/clone - clone a campaign as a new draft
+//
+// Body (all optional):
+//   name            override the auto-generated "<original> (Copy)"
+//   copyRecipients  also copy the source's recipient list, reset to pending
+//
+// The clone always comes back as a fresh draft with zeroed counters, so it can
+// be re-targeted and sent independently of the campaign it came from.
 router.post('/:id/clone', authenticate, (req, res) => {
     try {
         const db = getDb();
@@ -350,13 +357,56 @@ router.post('/:id/clone', authenticate, (req, res) => {
             return res.status(404).json({ success: false, error: 'Campaign not found' });
         }
 
-        const newId = crypto.randomUUID();
-        const newName = campaign.name + ' (Copy)';
+        const { name, copyRecipients } = req.body || {};
 
-        db.prepare(`
-            INSERT INTO campaigns (id, name, type, subject, html_content, text_content, status, total_recipients, sent_count, failed_count)
-            VALUES (?, ?, ?, ?, ?, ?, 'draft', 0, 0, 0)
-        `).run(newId, newName, campaign.type, campaign.subject, campaign.html_content, campaign.text_content);
+        // Cloning a clone shouldn't produce "Storm blast (Copy) (Copy) (Copy)".
+        // Strip any existing copy suffix, then find the first free number.
+        let newName = (name || '').trim();
+        if (!newName) {
+            const base = campaign.name.replace(/\s*\(Copy(?:\s+\d+)?\)$/i, '');
+            newName = `${base} (Copy)`;
+            let n = 2;
+            while (db.prepare('SELECT 1 FROM campaigns WHERE name = ?').get(newName)) {
+                newName = `${base} (Copy ${n++})`;
+            }
+        }
+
+        const newId = crypto.randomUUID();
+
+        const doClone = db.transaction(() => {
+            db.prepare(`
+                INSERT INTO campaigns (
+                    id, name, type, subject, html_content, text_content,
+                    trigger_event, is_active, from_name, from_email,
+                    status, total_recipients, sent_count, failed_count
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, ?, 'draft', 0, 0, 0)
+            `).run(
+                newId, newName, campaign.type, campaign.subject,
+                campaign.html_content, campaign.text_content,
+                // Keep the trigger so an autoresponder clones as an autoresponder,
+                // but never as an active one -- two live autoresponders on the same
+                // trigger would double-send to every new lead.
+                campaign.trigger_event || null,
+                campaign.from_name || null,
+                campaign.from_email || null,
+            );
+
+            if (copyRecipients) {
+                const rows = db.prepare(
+                    'SELECT lead_id, email, name FROM campaign_recipients WHERE campaign_id = ?'
+                ).all(req.params.id);
+                const ins = db.prepare(`
+                    INSERT INTO campaign_recipients (id, campaign_id, lead_id, email, name, status)
+                    VALUES (?, ?, ?, ?, ?, 'pending')
+                `);
+                for (const r of rows) {
+                    ins.run(crypto.randomUUID(), newId, r.lead_id, r.email, r.name);
+                }
+                db.prepare('UPDATE campaigns SET total_recipients = ? WHERE id = ?').run(rows.length, newId);
+            }
+        });
+
+        doClone();
 
         const cloned = db.prepare('SELECT * FROM campaigns WHERE id = ?').get(newId);
         res.json({ success: true, data: cloned });

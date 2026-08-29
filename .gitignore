@@ -23,6 +23,10 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
+# Local old-estimate photos and extraction (customer PII — do not commit)
+old-estimates/
+OLD ESTIMATES FOR CRM/
+
 # Database
 server/roof.db
 *.sqlite

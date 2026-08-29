@@ -114,16 +114,23 @@ export function useRecipientPreview(campaignId, filter, statusValue, cityValue) 
     });
 }
 
+/**
+ * Clone a campaign into a fresh draft.
+ * Accepts a bare id, or { campaignId, name, copyRecipients }.
+ */
 export function useCloneCampaign() {
     const queryClient = useQueryClient();
 
     return useMutation({
-        mutationFn: async (campaignId) => {
-            const { data } = await api.post(`/campaigns/${campaignId}/clone`);
+        mutationFn: async (arg) => {
+            const { campaignId, ...body } = typeof arg === 'string' ? { campaignId: arg } : arg;
+            const { data } = await api.post(`/campaigns/${campaignId}/clone`, body);
             return data.data;
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['campaigns'] });
+            queryClient.invalidateQueries({ queryKey: ['campaign'] });
+            queryClient.invalidateQueries({ queryKey: ['autoresponders'] });
         }
     });
 }
