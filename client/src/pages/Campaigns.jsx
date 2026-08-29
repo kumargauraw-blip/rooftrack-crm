@@ -18,7 +18,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
-    Plus, Trash2, ArrowLeft, Send, Mail, Eye, Users, AlertTriangle, Copy
+    Plus, Trash2, ArrowLeft, Send, Mail, Eye, Users, AlertTriangle, Copy, Pencil
 } from 'lucide-react';
 
 const TEMPLATES = {
@@ -377,6 +377,112 @@ function SendConfirmDialog({ recipientCount, onConfirm, onCancel, isPending }) {
     );
 }
 
+// --- Edit Campaign Dialog ---
+// The server only accepts edits to a manual campaign while it is still a
+// draft, so the Edit button is hidden once a campaign has been sent. Unlike
+// the create form, changing Type here does NOT reload a starter template --
+// that would silently wipe whatever you had written.
+function EditCampaignDialog({ campaign, onClose }) {
+    const [name, setName] = useState(campaign.name || '');
+    const [type, setType] = useState(campaign.type || 'custom');
+    const [subject, setSubject] = useState(campaign.subject || '');
+    const [htmlContent, setHtmlContent] = useState(campaign.html_content || '');
+    const [textContent, setTextContent] = useState(campaign.text_content || '');
+    const { mutate: updateCampaign, isPending, error } = useUpdateCampaign();
+
+    const dirty =
+        name !== (campaign.name || '') ||
+        type !== (campaign.type || 'custom') ||
+        subject !== (campaign.subject || '') ||
+        htmlContent !== (campaign.html_content || '') ||
+        textContent !== (campaign.text_content || '');
+
+    const handleSubmit = (e) => {
+        e.preventDefault();
+        updateCampaign(
+            { id: campaign.id, name, type, subject, html_content: htmlContent, text_content: textContent },
+            { onSuccess: onClose }
+        );
+    };
+
+    return (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={onClose}>
+            <Card className="w-full max-w-2xl max-h-[85vh] flex flex-col" onClick={e => e.stopPropagation()}>
+                <CardHeader className="pb-4">
+                    <CardTitle className="text-lg">Edit campaign</CardTitle>
+                    <p className="text-sm text-muted-foreground">
+                        Changes apply to everyone who hasn't been emailed yet. Recipients already
+                        added stay on the list.
+                    </p>
+                </CardHeader>
+                <CardContent className="overflow-y-auto">
+                    <form onSubmit={handleSubmit} className="space-y-4">
+                        <div>
+                            <label className="block text-sm font-medium mb-1" htmlFor="edit-name">Campaign Name</label>
+                            <Input id="edit-name" value={name} onChange={e => setName(e.target.value)} required />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium mb-1" htmlFor="edit-type">Type</label>
+                            <select
+                                id="edit-type"
+                                value={type}
+                                onChange={e => setType(e.target.value)}
+                                className="w-full border rounded-md px-3 py-2 text-sm"
+                            >
+                                <option value="referral">Referral Request</option>
+                                <option value="review_request">Review Request</option>
+                                <option value="promo">Promotional</option>
+                                <option value="storm_response">Storm Response</option>
+                                <option value="custom">Custom</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium mb-1" htmlFor="edit-subject">Subject Line</label>
+                            <Input id="edit-subject" value={subject} onChange={e => setSubject(e.target.value)} placeholder="Email subject" />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium mb-1" htmlFor="edit-html">HTML Content</label>
+                            <textarea
+                                id="edit-html"
+                                value={htmlContent}
+                                onChange={e => setHtmlContent(e.target.value)}
+                                rows={12}
+                                className="w-full border rounded-md px-3 py-2 text-sm font-mono"
+                                placeholder="HTML email body"
+                            />
+                            <p className="text-xs text-muted-foreground mt-1">
+                                {'{{first_name}}'} and {'{{name}}'} are filled in per recipient.
+                            </p>
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium mb-1" htmlFor="edit-text">Plain Text Content</label>
+                            <textarea
+                                id="edit-text"
+                                value={textContent}
+                                onChange={e => setTextContent(e.target.value)}
+                                rows={6}
+                                className="w-full border rounded-md px-3 py-2 text-sm"
+                                placeholder="Plain text fallback"
+                            />
+                        </div>
+                        {error && (
+                            <p className="text-sm text-red-600">
+                                {error?.response?.data?.error || error.message || 'Could not save changes.'}
+                            </p>
+                        )}
+                        <div className="flex gap-2 justify-end pt-1">
+                            <Button type="button" variant="ghost" onClick={onClose}>Cancel</Button>
+                            <Button type="submit" disabled={isPending || !name.trim() || !dirty}>
+                                {isPending ? 'Saving...' : 'Save changes'}
+                            </Button>
+                        </div>
+                    </form>
+                </CardContent>
+            </Card>
+        </div>
+    );
+}
+
 // --- Clone Dialog ---
 // Naming the copy up front is the whole point: a clone you have to rename
 // afterwards is barely faster than starting over.
@@ -511,6 +617,7 @@ function CampaignDetail({ id }) {
     const [showSendConfirm, setShowSendConfirm] = useState(false);
     const [showClone, setShowClone] = useState(false);
     const [showTestSend, setShowTestSend] = useState(false);
+    const [showEdit, setShowEdit] = useState(false);
 
     // Autoresponders aren't "one-shot campaigns" — they fire per-lead. The
     // generic recipients/send UI below makes no sense for them. Bounce to
@@ -607,6 +714,11 @@ function CampaignDetail({ id }) {
 
             <div className="flex gap-2 flex-wrap">
                 {isDraft && (
+                    <Button variant="outline" onClick={() => setShowEdit(true)}>
+                        <Pencil className="h-4 w-4 mr-2" /> Edit
+                    </Button>
+                )}
+                {isDraft && (
                     <Button variant="outline" onClick={() => setShowRecipientModal(true)}>
                         <Users className="h-4 w-4 mr-2" /> Add Recipients
                     </Button>
@@ -663,6 +775,9 @@ function CampaignDetail({ id }) {
             )}
             {showPreview && (
                 <PreviewModal campaign={campaign} onClose={() => setShowPreview(false)} />
+            )}
+            {showEdit && (
+                <EditCampaignDialog campaign={campaign} onClose={() => setShowEdit(false)} />
             )}
             {showClone && (
                 <CloneDialog
