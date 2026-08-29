@@ -10,10 +10,21 @@ const { sendEmail, sendEmailWithRetry, renderTemplate } = require('../lib/email'
 // resets. So the knob that matters is emails-per-minute, expressed the same way
 // SendLayer expresses it, not an opaque millisecond delay.
 //
-// Set CAMPAIGN_EMAILS_PER_MINUTE to your plan's documented limit minus some
-// headroom. The default is deliberately timid: a slow campaign that arrives is
-// worth more than a fast one that gets the account blocked.
-const EMAILS_PER_MINUTE = Number(process.env.CAMPAIGN_EMAILS_PER_MINUTE) || 30;
+// SendLayer caps three windows at once, and the tightest one wins. On the
+// Starter plan (https://sendlayer.com/docs/understanding-sendlayer-rate-limiting/):
+//
+//   50 / minute      300 / hour      500 / day
+//
+// The per-minute number is a trap: sending 50/min blows the hourly cap six
+// minutes in. The sustainable rate is the HOURLY limit spread evenly, which is
+// 300/60 = 5 per minute. Even pacing also keeps us far from the per-minute
+// ceiling, so a burst can never trip the block.
+//
+// Override all three per plan; the send rate is derived from the hourly cap
+// unless explicitly set.
+const HOURLY_CAP = Number(process.env.CAMPAIGN_HOURLY_CAP) || 300;
+const DAILY_CAP = Number(process.env.CAMPAIGN_DAILY_CAP) || 500;
+const EMAILS_PER_MINUTE = Number(process.env.CAMPAIGN_EMAILS_PER_MINUTE) || Math.max(1, Math.floor(HOURLY_CAP / 60));
 const SEND_DELAY_MS = Number(process.env.CAMPAIGN_SEND_DELAY_MS) || Math.ceil(60000 / EMAILS_PER_MINUTE);
 
 // Once the account is blocked, every send fails no matter how we pace. Retrying
@@ -46,14 +57,53 @@ async function deliverCampaign(db, campaignId) {
     let rateLimited = 0;
     let consecutiveFailures = 0;
     let aborted = false;
+    let abortReason = '';
 
     const markSent = db.prepare("UPDATE campaign_recipients SET status = 'sent', sent_at = datetime('now'), error_message = NULL WHERE id = ?");
     const markFailed = db.prepare("UPDATE campaign_recipients SET status = 'failed', error_message = ? WHERE id = ?");
     const bumpStats = db.prepare('UPDATE campaigns SET sent_count = ?, failed_count = ? WHERE id = ?');
 
-    console.log(`[CAMPAIGN ${campaignId}] delivering ${recipients.length} recipient(s) at ${EMAILS_PER_MINUTE}/min (${SEND_DELAY_MS}ms spacing)`);
+    // Caps are per ACCOUNT, not per campaign, so count every campaign email
+    // this box has sent in the rolling window -- not just this run's.
+    const sentInWindow = db.prepare(
+        "SELECT COUNT(*) c FROM campaign_recipients WHERE status = 'sent' AND sent_at >= datetime('now', ?)"
+    );
+    const sentLastHour = () => sentInWindow.get('-60 minutes').c;
+    const sentLastDay = () => sentInWindow.get('-24 hours').c;
+
+    const dayRemaining = Math.max(0, DAILY_CAP - sentLastDay());
+    console.log(
+        `[CAMPAIGN ${campaignId}] delivering ${recipients.length} recipient(s) at ${EMAILS_PER_MINUTE}/min ` +
+        `(caps ${HOURLY_CAP}/hr, ${DAILY_CAP}/day — ${dayRemaining} left today, ` +
+        `est ${Math.round(Math.min(recipients.length, dayRemaining) / EMAILS_PER_MINUTE)} min)`
+    );
 
     for (const recipient of recipients) {
+        // Daily cap: nothing more will send today. Stop cleanly and leave the
+        // rest pending rather than burning them against a wall.
+        if (sentLastDay() >= DAILY_CAP) {
+            aborted = true;
+            abortReason = `daily cap of ${DAILY_CAP} reached — resume tomorrow`;
+            console.warn(`[CAMPAIGN ${campaignId}] PAUSED — ${abortReason}`);
+            break;
+        }
+
+        // Hourly cap: this one does clear on its own, so wait it out rather
+        // than abandoning the run.
+        let hourWaits = 0;
+        while (sentLastHour() >= HOURLY_CAP) {
+            if (hourWaits === 0) {
+                console.warn(`[CAMPAIGN ${campaignId}] hourly cap of ${HOURLY_CAP} reached — waiting for the window to roll over`);
+            }
+            if (++hourWaits > 70) { // ~70 min: the window must have moved by now
+                aborted = true;
+                abortReason = 'hourly cap did not clear after 70 minutes';
+                break;
+            }
+            await new Promise(r => setTimeout(r, 60000));
+        }
+        if (aborted) break;
+
         const recipientName = recipient.name || 'Valued Customer';
         const vars = { name: recipientName, first_name: recipientName.split(' ')[0] || recipientName };
 
@@ -92,7 +142,8 @@ async function deliverCampaign(db, campaignId) {
             // untouched rather than burning through them for nothing.
             if (consecutiveFailures >= CONSECUTIVE_FAILURE_LIMIT) {
                 aborted = true;
-                console.error(`[CAMPAIGN ${campaignId}] ABORTED after ${consecutiveFailures} consecutive failures — last error: ${result.error}`);
+                abortReason = `${consecutiveFailures} consecutive failures — last error: ${result.error}`;
+                console.error(`[CAMPAIGN ${campaignId}] ABORTED — ${abortReason}`);
                 break;
             }
         }
@@ -121,7 +172,8 @@ async function deliverCampaign(db, campaignId) {
 
     console.log(`[CAMPAIGN ${campaignId}] ${aborted ? 'ABORTED' : 'done'} — ${delivered} delivered, ${failed} failed, ${rateLimited} rate-limit retries, ${stillPending} still pending`);
     if (aborted) {
-        console.error(`[CAMPAIGN ${campaignId}] ${stillPending} recipient(s) left untouched. Fix the sending limit, then hit Retry to resume.`);
+        console.error(`[CAMPAIGN ${campaignId}] reason: ${abortReason}`);
+        console.error(`[CAMPAIGN ${campaignId}] ${stillPending} recipient(s) left untouched — hit "Send to N remaining" to resume.`);
     }
 
     // One summary to Dennis instead of one BCC per recipient. This keeps the
@@ -133,7 +185,7 @@ async function deliverCampaign(db, campaignId) {
             `Campaign: ${campaign.name}`,
             `Subject:  ${campaign.subject || '(none)'}`,
             '',
-            aborted ? 'RUN ABORTED — the email provider blocked sending.' : 'Run completed.',
+            aborted ? `RUN PAUSED — ${abortReason}` : 'Run completed.',
             '',
             `Delivered this run: ${delivered}`,
             `Failed this run:    ${failed}`,
@@ -141,7 +193,7 @@ async function deliverCampaign(db, campaignId) {
             `Not yet attempted:  ${stillPending}`,
             '',
             `Campaign totals — sent: ${sentCount}, failed: ${failedCount}`,
-            aborted ? '\nNobody left over was contacted. Fix the sending limit, then hit Retry to resume.' : '',
+            aborted ? '\nNobody left over was contacted. Open the campaign and hit "Send to N remaining" to resume.' : '',
         ].join('\n');
 
         await sendEmail({
