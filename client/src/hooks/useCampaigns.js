@@ -85,6 +85,26 @@ export function useSendCampaign() {
     });
 }
 
+/**
+ * Re-send only the recipients that failed. Recipients already marked 'sent'
+ * are untouched, so this can never double-email someone who got it.
+ */
+export function useRetryFailedCampaign() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: async (arg) => {
+            const { campaignId, ...body } = typeof arg === 'string' ? { campaignId: arg } : arg;
+            const { data } = await api.post(`/campaigns/${campaignId}/retry-failed`, body);
+            return data.data;
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['campaign'] });
+            queryClient.invalidateQueries({ queryKey: ['campaigns'] });
+        }
+    });
+}
+
 export function useAddCampaignRecipients() {
     const queryClient = useQueryClient();
 

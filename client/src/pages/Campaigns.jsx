@@ -10,7 +10,8 @@ import {
     useAddCampaignRecipients,
     useRecipientPreview,
     useCloneCampaign,
-    useTestSendCampaign
+    useTestSendCampaign,
+    useRetryFailedCampaign
 } from '../hooks/useCampaigns';
 import AutoresponderPanel from '../components/AutoresponderPanel';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
@@ -618,6 +619,7 @@ function CampaignDetail({ id }) {
     const [showClone, setShowClone] = useState(false);
     const [showTestSend, setShowTestSend] = useState(false);
     const [showEdit, setShowEdit] = useState(false);
+    const { mutate: retryFailed, isPending: isRetrying } = useRetryFailedCampaign();
 
     // Autoresponders aren't "one-shot campaigns" — they fire per-lead. The
     // generic recipients/send UI below makes no sense for them. Bounce to
@@ -732,6 +734,17 @@ function CampaignDetail({ id }) {
                 {isDraft && recipientCount > 0 && (
                     <Button variant="destructive" onClick={() => setShowSendConfirm(true)}>
                         <Send className="h-4 w-4 mr-2" /> Send Campaign
+                    </Button>
+                )}
+                {campaign.failed_count > 0 && campaign.status !== 'sending' && (
+                    <Button
+                        variant="destructive"
+                        onClick={() => retryFailed(id)}
+                        disabled={isRetrying}
+                        title="Re-sends only the recipients that failed. Anyone already emailed is skipped."
+                    >
+                        <Send className="h-4 w-4 mr-2" />
+                        {isRetrying ? 'Retrying...' : `Retry ${campaign.failed_count} failed`}
                     </Button>
                 )}
                 <Button variant="outline" onClick={() => setShowClone(true)} disabled={isCloning}>
