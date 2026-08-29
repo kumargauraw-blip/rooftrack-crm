@@ -38,7 +38,28 @@ const SEND_DELAY_MS = Number(process.env.CAMPAIGN_SEND_DELAY_MS) || Math.ceil(60
 // each of 600 recipients through a full backoff ladder then wastes hours to
 // deliver nothing, so give up after this many recipients fail back-to-back and
 // leave the rest untouched for a later run.
+//
+// Only SYSTEMIC failures count toward this. A rejected recipient means one bad
+// address, not a broken account, and an imported list has clusters of them --
+// counting those aborted a perfectly healthy run after five consecutive
+// OCR-damaged addresses.
 const CONSECUTIVE_FAILURE_LIMIT = Number(process.env.CAMPAIGN_ABORT_AFTER_FAILURES) || 5;
+
+/**
+ * Is this failure about the ACCOUNT (stop the run) or about THIS RECIPIENT
+ * (mark it and move on)?
+ *
+ *   429 / 5xx / no response  -> rate limited, provider down, network gone
+ *   401 / 403                -> bad API key, suspended account
+ *   other 4xx (400, 422 ...) -> this address is malformed or rejected
+ */
+function isSystemicFailure(result) {
+    const s = result.status;
+    if (!s) return true;                     // network error, no HTTP response
+    if (s === 429 || s >= 500) return true;
+    if (s === 401 || s === 403) return true;
+    return false;                            // per-recipient: skip, keep going
+}
 
 // A 429 here means "blocked until the minute window resets", so the useful wait
 // is roughly a window, not the couple of seconds that suits a transient 5xx.
@@ -62,6 +83,7 @@ async function deliverCampaign(db, campaignId) {
     let delivered = 0;
     let failed = 0;
     let rateLimited = 0;
+    let rejected = 0;
     let consecutiveFailures = 0;
     let aborted = false;
     let abortReason = '';
@@ -141,17 +163,25 @@ async function deliverCampaign(db, campaignId) {
         } else {
             markFailed.run((result.error || 'unknown').substring(0, 200), recipient.id);
             failedCount++; failed++;
-            consecutiveFailures++;
 
-            // Every send failing in a row means the account is blocked, not that
-            // these particular addresses are bad. Stop, and leave everyone we
-            // haven't attempted as 'pending' so the next run picks them up
-            // untouched rather than burning through them for nothing.
-            if (consecutiveFailures >= CONSECUTIVE_FAILURE_LIMIT) {
-                aborted = true;
-                abortReason = `${consecutiveFailures} consecutive failures — last error: ${result.error}`;
-                console.error(`[CAMPAIGN ${campaignId}] ABORTED — ${abortReason}`);
-                break;
+            if (isSystemicFailure(result)) {
+                consecutiveFailures++;
+
+                // Every send failing in a row means the account is blocked or
+                // the provider is down. Stop, and leave everyone we haven't
+                // attempted as 'pending' so the next run picks them up
+                // untouched rather than burning through them for nothing.
+                if (consecutiveFailures >= CONSECUTIVE_FAILURE_LIMIT) {
+                    aborted = true;
+                    abortReason = `${consecutiveFailures} consecutive provider failures — last error: ${result.error}`;
+                    console.error(`[CAMPAIGN ${campaignId}] ABORTED — ${abortReason}`);
+                    break;
+                }
+            } else {
+                // A rejected address is this recipient's problem, not the
+                // account's. Record it, leave the breaker alone, carry on.
+                rejected++;
+                console.warn(`[CAMPAIGN ${campaignId}] rejected ${recipient.email}: ${result.error}`);
             }
         }
 
@@ -177,7 +207,7 @@ async function deliverCampaign(db, campaignId) {
         sentCount, failedCount, campaignId
     );
 
-    console.log(`[CAMPAIGN ${campaignId}] ${aborted ? 'ABORTED' : 'done'} — ${delivered} delivered, ${failed} failed, ${rateLimited} rate-limit retries, ${stillPending} still pending`);
+    console.log(`[CAMPAIGN ${campaignId}] ${aborted ? 'ABORTED' : 'done'} — ${delivered} delivered, ${failed} failed, ${rateLimited} rate-limit retries, ${rejected} rejected addresses, ${stillPending} still pending`);
     if (aborted) {
         console.error(`[CAMPAIGN ${campaignId}] reason: ${abortReason}`);
         console.error(`[CAMPAIGN ${campaignId}] ${stillPending} recipient(s) left untouched — hit "Send to N remaining" to resume.`);
@@ -197,6 +227,7 @@ async function deliverCampaign(db, campaignId) {
             `Delivered this run: ${delivered}`,
             `Failed this run:    ${failed}`,
             `Rate-limit retries: ${rateLimited}`,
+            `Rejected addresses: ${rejected}   (bad email on the lead record)`,
             `Not yet attempted:  ${stillPending}`,
             '',
             `Campaign totals — sent: ${sentCount}, failed: ${failedCount}`,
