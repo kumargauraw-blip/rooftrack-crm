@@ -5,10 +5,26 @@ const authenticate = require('../middleware/auth');
 const crypto = require('crypto');
 const { sendEmail, sendEmailWithRetry, renderTemplate } = require('../lib/email');
 
-// Milliseconds between sends in a bulk campaign. The original 200ms (5/sec)
-// outran SendLayer's rate limit and a 771-recipient send lost 621 of them to
-// HTTP 429. Pace conservatively by default and let the box override it.
-const SEND_DELAY_MS = Number(process.env.CAMPAIGN_SEND_DELAY_MS) || 1200;
+// SendLayer enforces a per-MINUTE sending rate, and exceeding it doesn't just
+// reject the extra messages -- it blocks the whole account until the window
+// resets. So the knob that matters is emails-per-minute, expressed the same way
+// SendLayer expresses it, not an opaque millisecond delay.
+//
+// Set CAMPAIGN_EMAILS_PER_MINUTE to your plan's documented limit minus some
+// headroom. The default is deliberately timid: a slow campaign that arrives is
+// worth more than a fast one that gets the account blocked.
+const EMAILS_PER_MINUTE = Number(process.env.CAMPAIGN_EMAILS_PER_MINUTE) || 30;
+const SEND_DELAY_MS = Number(process.env.CAMPAIGN_SEND_DELAY_MS) || Math.ceil(60000 / EMAILS_PER_MINUTE);
+
+// Once the account is blocked, every send fails no matter how we pace. Retrying
+// each of 600 recipients through a full backoff ladder then wastes hours to
+// deliver nothing, so give up after this many recipients fail back-to-back and
+// leave the rest untouched for a later run.
+const CONSECUTIVE_FAILURE_LIMIT = Number(process.env.CAMPAIGN_ABORT_AFTER_FAILURES) || 5;
+
+// A 429 here means "blocked until the minute window resets", so the useful wait
+// is roughly a window, not the couple of seconds that suits a transient 5xx.
+const RATE_LIMIT_BACKOFF_MS = Number(process.env.CAMPAIGN_RATE_LIMIT_BACKOFF_MS) || 65000;
 
 /**
  * Deliver every 'pending' recipient of a campaign. Shared by the initial send
@@ -28,12 +44,14 @@ async function deliverCampaign(db, campaignId) {
     let delivered = 0;
     let failed = 0;
     let rateLimited = 0;
+    let consecutiveFailures = 0;
+    let aborted = false;
 
     const markSent = db.prepare("UPDATE campaign_recipients SET status = 'sent', sent_at = datetime('now'), error_message = NULL WHERE id = ?");
     const markFailed = db.prepare("UPDATE campaign_recipients SET status = 'failed', error_message = ? WHERE id = ?");
     const bumpStats = db.prepare('UPDATE campaigns SET sent_count = ?, failed_count = ? WHERE id = ?');
 
-    console.log(`[CAMPAIGN ${campaignId}] delivering ${recipients.length} recipient(s) at ${SEND_DELAY_MS}ms spacing`);
+    console.log(`[CAMPAIGN ${campaignId}] delivering ${recipients.length} recipient(s) at ${EMAILS_PER_MINUTE}/min (${SEND_DELAY_MS}ms spacing)`);
 
     for (const recipient of recipients) {
         const recipientName = recipient.name || 'Valued Customer';
@@ -51,18 +69,32 @@ async function deliverCampaign(db, campaignId) {
             // recipient. See the summary block below.
             skipBcc: true,
         }, {
+            retries: 2,
+            baseDelay: RATE_LIMIT_BACKOFF_MS,
             onRetry: ({ attempt, waitMs, status }) => {
                 if (status === 429) rateLimited++;
-                console.warn(`[CAMPAIGN ${campaignId}] ${status} for ${recipient.email}, retry ${attempt} in ${waitMs}ms`);
+                console.warn(`[CAMPAIGN ${campaignId}] ${status} for ${recipient.email}, retry ${attempt} in ${Math.round(waitMs / 1000)}s`);
             },
         });
 
         if (result.ok) {
             markSent.run(recipient.id);
             sentCount++; delivered++;
+            consecutiveFailures = 0;
         } else {
             markFailed.run((result.error || 'unknown').substring(0, 200), recipient.id);
             failedCount++; failed++;
+            consecutiveFailures++;
+
+            // Every send failing in a row means the account is blocked, not that
+            // these particular addresses are bad. Stop, and leave everyone we
+            // haven't attempted as 'pending' so the next run picks them up
+            // untouched rather than burning through them for nothing.
+            if (consecutiveFailures >= CONSECUTIVE_FAILURE_LIMIT) {
+                aborted = true;
+                console.error(`[CAMPAIGN ${campaignId}] ABORTED after ${consecutiveFailures} consecutive failures — last error: ${result.error}`);
+                break;
+            }
         }
 
         // Persist progress as we go, so a crash or restart mid-send doesn't
@@ -87,7 +119,10 @@ async function deliverCampaign(db, campaignId) {
         sentCount, failedCount, campaignId
     );
 
-    console.log(`[CAMPAIGN ${campaignId}] done — ${delivered} delivered, ${failed} failed, ${rateLimited} rate-limit retries, ${stillPending} still pending`);
+    console.log(`[CAMPAIGN ${campaignId}] ${aborted ? 'ABORTED' : 'done'} — ${delivered} delivered, ${failed} failed, ${rateLimited} rate-limit retries, ${stillPending} still pending`);
+    if (aborted) {
+        console.error(`[CAMPAIGN ${campaignId}] ${stillPending} recipient(s) left untouched. Fix the sending limit, then hit Retry to resume.`);
+    }
 
     // One summary to Dennis instead of one BCC per recipient. This keeps the
     // "Dennis always knows what went out" rule that the per-send BCC existed
@@ -98,17 +133,23 @@ async function deliverCampaign(db, campaignId) {
             `Campaign: ${campaign.name}`,
             `Subject:  ${campaign.subject || '(none)'}`,
             '',
+            aborted ? 'RUN ABORTED — the email provider blocked sending.' : 'Run completed.',
+            '',
             `Delivered this run: ${delivered}`,
             `Failed this run:    ${failed}`,
             `Rate-limit retries: ${rateLimited}`,
+            `Not yet attempted:  ${stillPending}`,
             '',
             `Campaign totals — sent: ${sentCount}, failed: ${failedCount}`,
+            aborted ? '\nNobody left over was contacted. Fix the sending limit, then hit Retry to resume.' : '',
         ].join('\n');
 
         await sendEmail({
             toEmail: summaryTo,
             toName: 'Dennis Harrison',
-            subject: `[Campaign sent] ${campaign.name} — ${delivered} delivered, ${failed} failed`,
+            subject: aborted
+                ? `[Campaign PAUSED] ${campaign.name} — blocked after ${delivered} delivered`
+                : `[Campaign sent] ${campaign.name} — ${delivered} delivered, ${failed} failed`,
             htmlContent: `<pre style="font-family:monospace;font-size:14px">${lines.replace(/&/g, '&amp;').replace(/</g, '&lt;')}</pre>`,
             textContent: lines,
             skipBcc: true, // he is the direct recipient here
@@ -397,8 +438,14 @@ router.post('/:id/retry-failed', authenticate, async (req, res) => {
             ? db.prepare("SELECT id FROM campaign_recipients WHERE campaign_id = ? AND status = 'failed' AND error_message LIKE '%429%'").all(req.params.id)
             : db.prepare("SELECT id FROM campaign_recipients WHERE campaign_id = ? AND status = 'failed'").all(req.params.id);
 
-        if (failed.length === 0) {
-            return res.status(400).json({ success: false, error: 'No failed recipients to retry' });
+        // An aborted run leaves untried recipients as 'pending'. Those need
+        // resuming too, so a retry is valid when either bucket has anything in it.
+        const alreadyPending = db.prepare(
+            "SELECT COUNT(*) c FROM campaign_recipients WHERE campaign_id = ? AND status = 'pending'"
+        ).get(req.params.id).c;
+
+        if (failed.length === 0 && alreadyPending === 0) {
+            return res.status(400).json({ success: false, error: 'Nothing left to send — no failed or pending recipients' });
         }
 
         const reset = db.prepare("UPDATE campaign_recipients SET status = 'pending', error_message = NULL WHERE id = ?");
@@ -410,7 +457,7 @@ router.post('/:id/retry-failed', authenticate, async (req, res) => {
         db.prepare('UPDATE campaigns SET failed_count = ?, status = ? WHERE id = ?')
             .run(Math.max(0, (campaign.failed_count || 0) - failed.length), 'sending', req.params.id);
 
-        res.json({ success: true, data: { message: 'Retry started', retrying: failed.length } });
+        res.json({ success: true, data: { message: 'Retry started', retrying: failed.length + alreadyPending } });
 
         await deliverCampaign(db, req.params.id);
 

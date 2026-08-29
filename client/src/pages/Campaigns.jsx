@@ -638,6 +638,9 @@ function CampaignDetail({ id }) {
 
     const isDraft = campaign.status === 'draft';
     const recipientCount = campaign.recipients?.length || 0;
+    // Everyone on the list who hasn't actually received the email: the ones that
+    // failed, plus any an aborted run never reached (still 'pending').
+    const unsentCount = (campaign.recipients || []).filter(r => r.status !== 'sent').length;
 
     const handleSend = () => {
         sendCampaign(id, {
@@ -736,15 +739,17 @@ function CampaignDetail({ id }) {
                         <Send className="h-4 w-4 mr-2" /> Send Campaign
                     </Button>
                 )}
-                {campaign.failed_count > 0 && campaign.status !== 'sending' && (
+{/* Unsent = failed, plus anyone an aborted run never got to. Both need the
+    same resume path, so count them together. */}
+                {unsentCount > 0 && campaign.status !== 'sending' && !isDraft && (
                     <Button
                         variant="destructive"
                         onClick={() => retryFailed(id)}
                         disabled={isRetrying}
-                        title="Re-sends only the recipients that failed. Anyone already emailed is skipped."
+                        title="Sends only the recipients who haven't received it. Anyone already emailed is skipped."
                     >
                         <Send className="h-4 w-4 mr-2" />
-                        {isRetrying ? 'Retrying...' : `Retry ${campaign.failed_count} failed`}
+                        {isRetrying ? 'Sending...' : `Send to ${unsentCount} remaining`}
                     </Button>
                 )}
                 <Button variant="outline" onClick={() => setShowClone(true)} disabled={isCloning}>
