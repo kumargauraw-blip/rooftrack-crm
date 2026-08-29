@@ -10,18 +10,25 @@ const { sendEmail, sendEmailWithRetry, renderTemplate } = require('../lib/email'
 // resets. So the knob that matters is emails-per-minute, expressed the same way
 // SendLayer expresses it, not an opaque millisecond delay.
 //
-// SendLayer caps three windows at once, and the tightest one wins. On the
-// Starter plan (https://sendlayer.com/docs/understanding-sendlayer-rate-limiting/):
+// SendLayer caps three windows at once and the tightest one wins.
+// https://sendlayer.com/docs/understanding-sendlayer-rate-limiting/
 //
-//   50 / minute      300 / hour      500 / day
+//   Plan      /minute   /hour   /day
+//   Trial          10      25      50
+//   Starter        50     300     500
+//   Business      120     500    1000
+//   Growth        200    1000    2500
+//   Scale         500    3000    6000
 //
-// The per-minute number is a trap: sending 50/min blows the hourly cap six
-// minutes in. The sustainable rate is the HOURLY limit spread evenly, which is
-// 300/60 = 5 per minute. Even pacing also keeps us far from the per-minute
-// ceiling, so a burst can never trip the block.
+// The per-minute figure is a trap on every tier: Business allows 120/min but
+// only 500/hour, so sending at the per-minute rate trips the block in four
+// minutes. The sustainable rate is always the HOURLY cap spread evenly
+// (Business: 500/60 = 8/min), which also stays far below the per-minute
+// ceiling so no burst can trip it.
 //
-// Override all three per plan; the send rate is derived from the hourly cap
-// unless explicitly set.
+// Defaults are Starter, the safest tier to guess wrong about. Set
+// CAMPAIGN_HOURLY_CAP and CAMPAIGN_DAILY_CAP from the table to match the plan
+// actually being paid for; the send rate follows from the hourly cap.
 const HOURLY_CAP = Number(process.env.CAMPAIGN_HOURLY_CAP) || 300;
 const DAILY_CAP = Number(process.env.CAMPAIGN_DAILY_CAP) || 500;
 const EMAILS_PER_MINUTE = Number(process.env.CAMPAIGN_EMAILS_PER_MINUTE) || Math.max(1, Math.floor(HOURLY_CAP / 60));
